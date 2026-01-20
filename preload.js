@@ -14,6 +14,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Show native notification
   showNotification: (title, body) => ipcRenderer.invoke('show-notification', { title, body }),
 
+  // Listen for window shown event (for reconnecting calls when restored from tray)
+  onWindowShown: (callback) => {
+    ipcRenderer.on('window-shown', () => callback())
+  },
+
   // Check if running in Electron
   isElectron: true
 })

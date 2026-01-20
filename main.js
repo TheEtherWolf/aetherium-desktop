@@ -88,6 +88,15 @@ function createWindow() {
     }
     return false
   })
+
+  // Notify renderer when window becomes visible (for call reconnection)
+  mainWindow.on('show', () => {
+    mainWindow.webContents.send('window-shown')
+  })
+
+  mainWindow.on('restore', () => {
+    mainWindow.webContents.send('window-shown')
+  })
 }
 
 function createTray() {
@@ -102,6 +111,8 @@ function createTray() {
         if (mainWindow) {
           mainWindow.show()
           mainWindow.focus()
+          // Notify renderer that window is now visible (for call reconnection)
+          mainWindow.webContents.send('window-shown')
         }
       }
     },
@@ -136,6 +147,8 @@ function createTray() {
       } else {
         mainWindow.show()
         mainWindow.focus()
+        // Notify renderer that window is now visible (for call reconnection)
+        mainWindow.webContents.send('window-shown')
       }
     }
   })
