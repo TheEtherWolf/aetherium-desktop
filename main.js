@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut } = require('electron')
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut, Notification, ipcMain } = require('electron')
 const path = require('path')
 const { autoUpdater } = require('electron-updater')
 
@@ -185,4 +185,26 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   app.isQuitting = true
   globalShortcut.unregisterAll()
+})
+
+// Handle notification requests from renderer
+ipcMain.handle('show-notification', (event, { title, body }) => {
+  if (Notification.isSupported()) {
+    const notification = new Notification({
+      title: title || 'Aetherium',
+      body: body || '',
+      icon: path.join(__dirname, 'resources', 'icon.png')
+    })
+
+    notification.on('click', () => {
+      if (mainWindow) {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    })
+
+    notification.show()
+    return true
+  }
+  return false
 })

@@ -11,8 +11,42 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Platform info
   platform: process.platform,
 
-  // Notification support
-  isNotificationsSupported: () => true
+  // Show native notification
+  showNotification: (title, body) => ipcRenderer.invoke('show-notification', { title, body }),
+
+  // Check if running in Electron
+  isElectron: true
+})
+
+// Override the browser Notification API with native notifications
+window.addEventListener('DOMContentLoaded', () => {
+  // Store original Notification
+  const OriginalNotification = window.Notification
+
+  // Create custom Notification class that uses Electron's native notifications
+  class ElectronNotification {
+    constructor(title, options = {}) {
+      this.title = title
+      this.body = options.body || ''
+
+      // Show native notification
+      ipcRenderer.invoke('show-notification', {
+        title: this.title,
+        body: this.body
+      })
+    }
+
+    static get permission() {
+      return 'granted'
+    }
+
+    static requestPermission() {
+      return Promise.resolve('granted')
+    }
+  }
+
+  // Replace browser Notification with our Electron version
+  window.Notification = ElectronNotification
 })
 
 // Log that preload script loaded
