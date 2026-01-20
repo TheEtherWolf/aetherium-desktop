@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage } = require('electron')
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut } = require('electron')
 const path = require('path')
 const { autoUpdater } = require('electron-updater')
 
@@ -105,6 +105,17 @@ function createTray() {
         }
       }
     },
+    {
+      label: 'Toggle Fullscreen',
+      accelerator: 'F11',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.setFullScreen(!mainWindow.isFullScreen())
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      }
+    },
     { type: 'separator' },
     {
       label: 'Quit',
@@ -149,6 +160,13 @@ app.whenReady().then(() => {
   createWindow()
   createTray()
 
+  // Register F11 for fullscreen toggle
+  globalShortcut.register('F11', () => {
+    if (mainWindow) {
+      mainWindow.setFullScreen(!mainWindow.isFullScreen())
+    }
+  })
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
@@ -166,4 +184,5 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true
+  globalShortcut.unregisterAll()
 })
