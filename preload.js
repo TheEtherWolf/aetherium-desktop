@@ -6,7 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 // Expose a limited API to the renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
   // Get app version
-  getVersion: () => process.env.npm_package_version || '1.0.0',
+  getVersion: () => ipcRenderer.invoke('get-app-version'),
 
   // Platform info
   platform: process.platform,
@@ -20,7 +20,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Check if running in Electron
-  isElectron: true
+  isElectron: true,
+
+  // Window controls for custom title bar
+  windowControls: {
+    minimize: () => ipcRenderer.send('window-minimize'),
+    maximize: () => ipcRenderer.send('window-maximize'),
+    close: () => ipcRenderer.send('window-close'),
+    isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+    onMaximizedChange: (callback) => {
+      ipcRenderer.on('window-maximized-change', (event, isMaximized) => callback(isMaximized))
+    }
+  },
+
+  // Auto-updater controls
+  autoUpdater: {
+    checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+    installUpdate: () => ipcRenderer.send('install-update'),
+    onUpdateAvailable: (callback) => {
+      ipcRenderer.on('update-available', (event, info) => callback(info))
+    },
+    onUpdateProgress: (callback) => {
+      ipcRenderer.on('update-progress', (event, progress) => callback(progress))
+    },
+    onUpdateDownloaded: (callback) => {
+      ipcRenderer.on('update-downloaded', (event, info) => callback(info))
+    },
+    onUpdateError: (callback) => {
+      ipcRenderer.on('update-error', (event, error) => callback(error))
+    }
+  }
 })
 
 // Override the browser Notification API with native notifications

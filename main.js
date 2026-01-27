@@ -16,8 +16,17 @@ if (!gotTheLock) {
 } else {
   app.on('second-instance', () => {
     if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
+      // Show window if hidden (closed to tray)
+      if (!mainWindow.isVisible()) {
+        mainWindow.show()
+      }
+      // Restore if minimized
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
       mainWindow.focus()
+      // Notify renderer that window is visible (for call reconnection)
+      mainWindow.webContents.send('window-shown')
     }
   })
 }
@@ -34,7 +43,8 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
-    titleBarStyle: 'default',
+    frame: false,              // Remove native frame for custom title bar
+    titleBarStyle: 'hidden',   // Hide default title bar
     show: false,
     backgroundColor: '#1a1a2e'
   })
@@ -97,6 +107,14 @@ function createWindow() {
   mainWindow.on('restore', () => {
     mainWindow.webContents.send('window-shown')
   })
+
+  // Notify renderer of maximize state changes for title bar button
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window-maximized-change', true)
+  })
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-maximized-change', false)
+  })
 }
 
 function createTray() {
@@ -154,19 +172,79 @@ function createTray() {
   })
 }
 
+// Auto-updater configuration
+// Always download the latest version (skips intermediate versions automatically)
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = true
+
 // Auto-updater events
-autoUpdater.on('update-available', () => {
-  console.log('Update available')
+autoUpdater.on('checking-for-update', () => {
+  console.log('Checking for updates...')
 })
 
-autoUpdater.on('update-downloaded', () => {
-  console.log('Update downloaded')
-  // Prompt user to restart
-  autoUpdater.quitAndInstall()
+autoUpdater.on('update-available', (info) => {
+  console.log('Update available:', info.version)
+  // Notify user that an update is downloading
+  if (mainWindow) {
+    mainWindow.webContents.send('update-available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes
+    })
+  }
+  // Show system notification
+  if (Notification.isSupported()) {
+    new Notification({
+      title: 'Aetherium Update Available',
+      body: `Version ${info.version} is downloading...`,
+      icon: path.join(__dirname, 'resources', 'icon.png')
+    }).show()
+  }
+})
+
+autoUpdater.on('update-not-available', () => {
+  console.log('App is up to date')
+})
+
+autoUpdater.on('download-progress', (progress) => {
+  console.log(`Download progress: ${Math.round(progress.percent)}%`)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-progress', {
+      percent: progress.percent,
+      transferred: progress.transferred,
+      total: progress.total
+    })
+  }
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Update downloaded:', info.version)
+  // Notify user and let them choose when to restart
+  if (mainWindow) {
+    mainWindow.webContents.send('update-downloaded', {
+      version: info.version
+    })
+  }
+  // Show system notification with action
+  if (Notification.isSupported()) {
+    const notification = new Notification({
+      title: 'Aetherium Update Ready',
+      body: `Version ${info.version} is ready to install. Click to restart now.`,
+      icon: path.join(__dirname, 'resources', 'icon.png')
+    })
+    notification.on('click', () => {
+      autoUpdater.quitAndInstall(false, true)
+    })
+    notification.show()
+  }
 })
 
 autoUpdater.on('error', (err) => {
   console.error('Auto-updater error:', err)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-error', {
+      message: err.message
+    })
+  }
 })
 
 app.whenReady().then(() => {
@@ -221,3 +299,47 @@ ipcMain.handle('show-notification', (event, { title, body }) => {
   }
   return false
 })
+
+// Custom title bar window controls
+ipcMain.on('window-minimize', () => {
+  if (mainWindow) mainWindow.minimize()
+})
+
+ipcMain.on('window-maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow.maximize()
+    }
+  }
+})
+
+ipcMain.on('window-close', () => {
+  if (mainWindow) mainWindow.close()
+})
+
+ipcMain.handle('window-is-maximized', () => {
+  return mainWindow ? mainWindow.isMaximized() : false
+})
+
+// IPC handler for manual update install
+ipcMain.on('install-update', () => {
+  autoUpdater.quitAndInstall(false, true)
+})
+
+// IPC handler for manual update check
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    const result = await autoUpdater.checkForUpdates()
+    return { success: true, updateInfo: result?.updateInfo }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// Get current app version
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion()
+})
+
