@@ -8,23 +8,27 @@ const AETHERIUM_URL = 'https://aetherium-89dr.onrender.com/'
 let mainWindow
 let tray = null
 
-// Prevent multiple instances
+// Prevent multiple instances - but show window when second instance tries to launch
 const gotTheLock = app.requestSingleInstanceLock()
 
 if (!gotTheLock) {
+  // Second instance - quit immediately, first instance will handle showing window
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  // First instance - handle when second instance tries to launch
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Always show and focus the window when user runs the EXE again
     if (mainWindow) {
-      // Show window if hidden (closed to tray)
-      if (!mainWindow.isVisible()) {
-        mainWindow.show()
-      }
+      // Show window (even if in tray)
+      mainWindow.show()
       // Restore if minimized
       if (mainWindow.isMinimized()) {
         mainWindow.restore()
       }
+      // Bring to front and focus
+      mainWindow.setAlwaysOnTop(true)
       mainWindow.focus()
+      mainWindow.setAlwaysOnTop(false)
       // Notify renderer that window is visible (for call reconnection)
       mainWindow.webContents.send('window-shown')
     }
