@@ -14,9 +14,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Show native notification
   showNotification: (title, body) => ipcRenderer.invoke('show-notification', { title, body }),
 
+  // Show overlay notification (appears when app is minimized/hidden)
+  showOverlayNotification: (data) => ipcRenderer.invoke('show-overlay-notification', data),
+
   // Listen for window shown event (for reconnecting calls when restored from tray)
   onWindowShown: (callback) => {
     ipcRenderer.on('window-shown', () => callback())
+  },
+
+  // Listen for overlay actions (answer/decline call from overlay)
+  onOverlayAction: (callback) => {
+    ipcRenderer.on('overlay-action', (event, data) => callback(data))
   },
 
   // Check if running in Electron
@@ -58,6 +66,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const OriginalNotification = window.Notification
 
   // Create custom Notification class that uses Electron's native notifications
+  // AND shows overlay when app is minimized/hidden
   class ElectronNotification {
     constructor(title, options = {}) {
       this.title = title
@@ -65,6 +74,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
       // Show native notification
       ipcRenderer.invoke('show-notification', {
+        title: this.title,
+        body: this.body
+      })
+
+      // Also show overlay notification (will only appear if window is hidden/minimized)
+      ipcRenderer.invoke('show-overlay-notification', {
+        type: 'message',
         title: this.title,
         body: this.body
       })

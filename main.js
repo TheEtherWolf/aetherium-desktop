@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut, Notification, ipcMain } = require('electron')
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut, Notification, ipcMain, screen } = require('electron')
 const path = require('path')
 const { autoUpdater } = require('electron-updater')
 
@@ -7,6 +7,7 @@ const AETHERIUM_URL = 'https://aetherium-89dr.onrender.com/'
 
 let mainWindow
 let tray = null
+let overlayWindow = null
 
 // Prevent multiple instances - but show window when second instance tries to launch
 const gotTheLock = app.requestSingleInstanceLock()
@@ -19,6 +20,8 @@ if (!gotTheLock) {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     // Always show and focus the window when user runs the EXE again
     if (mainWindow) {
+      // Ensure window is not hidden in taskbar
+      mainWindow.setSkipTaskbar(false)
       // Show window (even if in tray)
       mainWindow.show()
       // Restore if minimized
@@ -29,6 +32,11 @@ if (!gotTheLock) {
       mainWindow.setAlwaysOnTop(true)
       mainWindow.focus()
       mainWindow.setAlwaysOnTop(false)
+      // Flash taskbar to get attention
+      mainWindow.flashFrame(true)
+      setTimeout(() => {
+        if (mainWindow) mainWindow.flashFrame(false)
+      }, 3000)
       // Notify renderer that window is visible (for call reconnection)
       mainWindow.webContents.send('window-shown')
     }
@@ -176,8 +184,104 @@ function createTray() {
   })
 }
 
+// ============================================
+// Notification Overlay System
+// ============================================
+
+function showOverlay(data) {
+  // Close existing overlay
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close()
+    overlayWindow = null
+  }
+
+  const display = screen.getPrimaryDisplay()
+  const { width: screenW, height: screenH } = display.workAreaSize
+
+  const overlayW = 380
+  const overlayH = data.type === 'call' ? 80 : 70
+
+  overlayWindow = new BrowserWindow({
+    width: overlayW,
+    height: overlayH,
+    x: screenW - overlayW - 16,
+    y: screenH - overlayH - 16,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    focusable: false,
+    show: false,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  })
+
+  overlayWindow.loadFile(path.join(__dirname, 'overlay.html'))
+
+  overlayWindow.once('ready-to-show', () => {
+    overlayWindow.showInactive()
+    overlayWindow.webContents.send('show-overlay', data)
+  })
+
+  overlayWindow.on('closed', () => {
+    overlayWindow = null
+  })
+}
+
+function dismissOverlay() {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close()
+    overlayWindow = null
+  }
+}
+
+// Overlay IPC handlers
+ipcMain.on('overlay-clicked', () => {
+  dismissOverlay()
+  if (mainWindow) {
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.webContents.send('window-shown')
+  }
+})
+
+ipcMain.on('overlay-answer-call', () => {
+  dismissOverlay()
+  if (mainWindow) {
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.webContents.send('window-shown')
+    mainWindow.webContents.send('overlay-action', { action: 'answer-call' })
+  }
+})
+
+ipcMain.on('overlay-decline-call', () => {
+  dismissOverlay()
+  if (mainWindow) {
+    mainWindow.webContents.send('overlay-action', { action: 'decline-call' })
+  }
+})
+
+ipcMain.on('overlay-dismiss', () => {
+  dismissOverlay()
+})
+
+// Handler for renderer to show overlay notifications
+ipcMain.handle('show-overlay-notification', (event, data) => {
+  // Only show overlay when window is hidden or minimized
+  if (mainWindow && (!mainWindow.isVisible() || mainWindow.isMinimized() || !mainWindow.isFocused())) {
+    showOverlay(data)
+    return true
+  }
+  return false
+})
+
+// ============================================
 // Auto-updater configuration
-// Always download the latest version (skips intermediate versions automatically)
+// ============================================
 autoUpdater.autoDownload = true
 autoUpdater.autoInstallOnAppQuit = true
 
@@ -346,4 +450,3 @@ ipcMain.handle('check-for-updates', async () => {
 ipcMain.handle('get-app-version', () => {
   return app.getVersion()
 })
-
