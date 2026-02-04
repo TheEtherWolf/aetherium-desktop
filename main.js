@@ -132,7 +132,8 @@ function createWindow() {
 function createTray() {
   const iconPath = path.join(__dirname, 'resources', 'icon.png')
   const trayIcon = nativeImage.createFromPath(iconPath)
-  tray = new Tray(trayIcon.resize({ width: 16, height: 16 }))
+  // Use 32x32 for better clarity on high DPI displays (Windows scales down as needed)
+  tray = new Tray(trayIcon.resize({ width: 32, height: 32 }))
 
   const contextMenu = Menu.buildFromTemplate([
     {
