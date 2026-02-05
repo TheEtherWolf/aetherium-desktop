@@ -1,9 +1,9 @@
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut, Notification, ipcMain, screen } = require('electron')
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut, Notification, ipcMain, screen, desktopCapturer } = require('electron')
 const path = require('path')
 const { autoUpdater } = require('electron-updater')
 
 // The URL of the deployed Aetherium web app
-const AETHERIUM_URL = 'https://aetherium-89dr.onrender.com/'
+const AETHERIUM_URL = 'https://aetherium-chat.onrender.com/'
 
 let mainWindow
 let tray = null
@@ -354,6 +354,105 @@ autoUpdater.on('error', (err) => {
       message: err.message
     })
   }
+})
+
+// ============================================
+// Custom Screen Picker for Screen Sharing
+// ============================================
+let screenPickerWindow = null
+
+async function getScreenSources() {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen', 'window'],
+      thumbnailSize: { width: 320, height: 180 },
+      fetchWindowIcons: true
+    })
+
+    return sources.map(source => ({
+      id: source.id,
+      name: source.name,
+      thumbnail: source.thumbnail.toDataURL(),
+      appIcon: source.appIcon ? source.appIcon.toDataURL() : null,
+      type: source.id.startsWith('screen:') ? 'screen' : 'window'
+    }))
+  } catch (err) {
+    console.error('Failed to get screen sources:', err)
+    return []
+  }
+}
+
+function createScreenPickerWindow() {
+  return new Promise((resolve) => {
+    if (screenPickerWindow && !screenPickerWindow.isDestroyed()) {
+      screenPickerWindow.close()
+    }
+
+    const display = screen.getPrimaryDisplay()
+    const { width: screenW, height: screenH } = display.workAreaSize
+
+    const pickerW = 800
+    const pickerH = 600
+
+    screenPickerWindow = new BrowserWindow({
+      width: pickerW,
+      height: pickerH,
+      x: Math.round((screenW - pickerW) / 2),
+      y: Math.round((screenH - pickerH) / 2),
+      parent: mainWindow,
+      modal: true,
+      frame: false,
+      transparent: false,
+      resizable: false,
+      backgroundColor: '#1e1f22',
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false
+      }
+    })
+
+    screenPickerWindow.loadFile(path.join(__dirname, 'screen-picker.html'))
+
+    // Handle source selection
+    ipcMain.once('screen-picker-select', (event, sourceId) => {
+      screenPickerWindow.close()
+      screenPickerWindow = null
+      resolve(sourceId)
+    })
+
+    // Handle cancel
+    ipcMain.once('screen-picker-cancel', () => {
+      screenPickerWindow.close()
+      screenPickerWindow = null
+      resolve(null)
+    })
+
+    screenPickerWindow.on('closed', () => {
+      screenPickerWindow = null
+      // Clean up listeners if window closed without selection
+      ipcMain.removeAllListeners('screen-picker-select')
+      ipcMain.removeAllListeners('screen-picker-cancel')
+      resolve(null)
+    })
+  })
+}
+
+// IPC handler to get screen sources
+ipcMain.handle('get-screen-sources', async () => {
+  return await getScreenSources()
+})
+
+// IPC handler to open screen picker
+ipcMain.handle('open-screen-picker', async () => {
+  const sourceId = await createScreenPickerWindow()
+  return sourceId
+})
+
+// IPC handler to get stream from source ID
+ipcMain.handle('get-source-stream', async (event, sourceId, constraints) => {
+  // This will be handled by the renderer using the sourceId
+  // The main process just returns the sourceId, renderer uses navigator.mediaDevices.getUserMedia
+  return { sourceId, constraints }
 })
 
 app.whenReady().then(() => {

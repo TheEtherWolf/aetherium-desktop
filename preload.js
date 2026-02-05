@@ -57,6 +57,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUpdateError: (callback) => {
       ipcRenderer.on('update-error', (event, error) => callback(error))
     }
+  },
+
+  // Screen sharing / Desktop capture
+  screenShare: {
+    // Get available screen and window sources
+    getSources: () => ipcRenderer.invoke('get-screen-sources'),
+    // Open custom screen picker UI and return selected source ID
+    openPicker: () => ipcRenderer.invoke('open-screen-picker'),
+    // Check if custom screen picker is available (Electron only)
+    isAvailable: true
   }
 })
 
