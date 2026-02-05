@@ -2,6 +2,19 @@
 
 Desktop application for Aetherium Chat, built with Electron.
 
+---
+
+## ⚠️ Important Update (v1.1.0)
+
+**If you have a version of Aetherium Desktop from before February 5, 2026**, please uninstall it and download the latest version. The old version had an incorrect server URL and will not connect properly.
+
+**To update:**
+1. Uninstall the old Aetherium app
+2. Download the new installer from [Releases](https://github.com/TheEtherWolf/aetherium-desktop/releases/latest)
+3. Run the installer
+
+---
+
 ## Features
 
 - Native desktop experience
