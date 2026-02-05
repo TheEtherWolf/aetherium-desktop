@@ -3,7 +3,7 @@ const path = require('path')
 const { autoUpdater } = require('electron-updater')
 
 // The URL of the deployed Aetherium web app
-const AETHERIUM_URL = 'https://aetherium-chat.onrender.com/'
+const AETHERIUM_URL = 'https://aetherium-89dr.onrender.com/'
 
 let mainWindow
 let tray = null
