@@ -1,25 +1,34 @@
-// Preload script for Electron
-// This runs in the renderer process before the web page loads
+// Preload script for Aetherium Desktop
+// Bridges Electron main process with the web app renderer
 
 const { contextBridge, ipcRenderer } = require('electron')
 
-// Expose a limited API to the renderer process
+// Track overlay state
+let overlayEnabled = true
+
+// Expose API to renderer
 contextBridge.exposeInMainWorld('electronAPI', {
   // Get app version
   getVersion: () => ipcRenderer.invoke('get-app-version'),
 
   // Platform info
   platform: process.platform,
+  isElectron: true,
 
-  // Show native notification
-  showNotification: (title, body) => ipcRenderer.invoke('show-notification', { title, body }),
-
-  // Show overlay notification (appears when app is minimized/hidden)
+  // ============================================
+  // Overlay System
+  // ============================================
+  
+  // Show overlay notification (gaming style, appears when app is minimized/hidden)
   showOverlayNotification: (data) => ipcRenderer.invoke('show-overlay-notification', data),
 
-  // Listen for window shown event (for reconnecting calls when restored from tray)
-  onWindowShown: (callback) => {
-    ipcRenderer.on('window-shown', () => callback())
+  // Toggle overlay on/off
+  setOverlayEnabled: (enabled) => ipcRenderer.invoke('set-overlay-enabled', enabled),
+  getOverlayEnabled: () => ipcRenderer.invoke('get-overlay-enabled'),
+
+  // Listen for overlay state changes (from tray menu)
+  onOverlayEnabledChange: (callback) => {
+    ipcRenderer.on('overlay-enabled-change', (event, enabled) => callback(enabled))
   },
 
   // Listen for overlay actions (answer/decline call from overlay)
@@ -27,8 +36,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('overlay-action', (event, data) => callback(data))
   },
 
-  // Check if running in Electron
-  isElectron: true,
+  // Listen for navigation requests (clicking overlay card)
+  onNavigateToConversation: (callback) => {
+    ipcRenderer.on('navigate-to-conversation', (event, conversationId) => callback(conversationId))
+  },
+
+  // ============================================
+  // Native Notifications (fallback when overlay disabled)
+  // ============================================
+  showNotification: (title, body) => ipcRenderer.invoke('show-notification', { title, body }),
+
+  // ============================================
+  // Window Events
+  // ============================================
+  onWindowShown: (callback) => {
+    ipcRenderer.on('window-shown', () => callback())
+  },
 
   // Window controls for custom title bar
   windowControls: {
@@ -41,7 +64,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
-  // Auto-updater controls
+  // ============================================
+  // Auto-updater
+  // ============================================
   autoUpdater: {
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
     installUpdate: () => ipcRenderer.send('install-update'),
@@ -59,41 +84,51 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
-  // Screen sharing / Desktop capture
+  // ============================================
+  // Screen Sharing
+  // ============================================
   screenShare: {
-    // Get available screen and window sources
     getSources: () => ipcRenderer.invoke('get-screen-sources'),
-    // Open custom screen picker UI and return selected source ID
     openPicker: () => ipcRenderer.invoke('open-screen-picker'),
-    // Check if custom screen picker is available (Electron only)
     isAvailable: true
-  }
+  },
+
+  // Clear cache and reload (for web app updates)
+  clearCacheAndReload: () => ipcRenderer.invoke('clear-cache-and-reload')
 })
 
-// Override the browser Notification API with native notifications
+// ============================================
+// Override Browser Notification API
+// ============================================
 window.addEventListener('DOMContentLoaded', () => {
-  // Store original Notification
-  const OriginalNotification = window.Notification
-
-  // Create custom Notification class that uses Electron's native notifications
-  // AND shows overlay when app is minimized/hidden
+  // Custom Notification class that uses overlay when enabled
   class ElectronNotification {
     constructor(title, options = {}) {
       this.title = title
       this.body = options.body || ''
+      this.icon = options.icon || null
+      this.tag = options.tag || null
+      this.data = options.data || {}
 
-      // Show native notification
-      ipcRenderer.invoke('show-notification', {
-        title: this.title,
-        body: this.body
-      })
+      // Don't show notification if window is focused
+      // The main process handles this check too, but we can skip the IPC
+      if (document.hasFocus()) {
+        return
+      }
 
-      // Also show overlay notification (will only appear if window is hidden/minimized)
+      // Show overlay notification
       ipcRenderer.invoke('show-overlay-notification', {
-        type: 'message',
+        type: this.data.type || 'message',
         title: this.title,
-        body: this.body
+        body: this.body,
+        avatar: this.icon,
+        conversationId: this.data.conversationId,
+        duration: this.data.duration
       })
+    }
+
+    close() {
+      // Overlay handles auto-dismiss
     }
 
     static get permission() {
@@ -107,7 +142,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Replace browser Notification with our Electron version
   window.Notification = ElectronNotification
+
+  // Also intercept any calls to the Notification API that might bypass our class
+  Object.defineProperty(window, 'Notification', {
+    value: ElectronNotification,
+    writable: false,
+    configurable: false
+  })
 })
 
-// Log that preload script loaded
 console.log('Aetherium Desktop preload script loaded')

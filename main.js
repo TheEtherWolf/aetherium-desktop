@@ -8,36 +8,24 @@ const AETHERIUM_URL = 'https://aetherium-89dr.onrender.com/'
 let mainWindow
 let tray = null
 let overlayWindow = null
+let overlayEnabled = true // Can be toggled from settings
 
-// Prevent multiple instances - but show window when second instance tries to launch
+// Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock()
 
 if (!gotTheLock) {
-  // Second instance - quit immediately, first instance will handle showing window
   app.quit()
 } else {
-  // First instance - handle when second instance tries to launch
   app.on('second-instance', (event, commandLine, workingDirectory) => {
-    // Always show and focus the window when user runs the EXE again
     if (mainWindow) {
-      // Ensure window is not hidden in taskbar
       mainWindow.setSkipTaskbar(false)
-      // Show window (even if in tray)
       mainWindow.show()
-      // Restore if minimized
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore()
-      }
-      // Bring to front and focus
+      if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.setAlwaysOnTop(true)
       mainWindow.focus()
       mainWindow.setAlwaysOnTop(false)
-      // Flash taskbar to get attention
       mainWindow.flashFrame(true)
-      setTimeout(() => {
-        if (mainWindow) mainWindow.flashFrame(false)
-      }, 3000)
-      // Notify renderer that window is visible (for call reconnection)
+      setTimeout(() => { if (mainWindow) mainWindow.flashFrame(false) }, 3000)
       mainWindow.webContents.send('window-shown')
     }
   })
@@ -55,29 +43,22 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
-    frame: false,              // Remove native frame for custom title bar
-    titleBarStyle: 'hidden',   // Hide default title bar
+    frame: false,
+    titleBarStyle: 'hidden',
     show: false,
     backgroundColor: '#1a1a2e'
   })
 
-  // Remove the menu bar
   Menu.setApplicationMenu(null)
-
-  // Load the Aetherium web app
   mainWindow.loadURL(AETHERIUM_URL)
 
-  // Show window when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
-
-    // Check for updates after window is shown
     if (app.isPackaged) {
       autoUpdater.checkForUpdatesAndNotify()
     }
   })
 
-  // Open external links in browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(AETHERIUM_URL)) {
       shell.openExternal(url)
@@ -86,7 +67,6 @@ function createWindow() {
     return { action: 'allow' }
   })
 
-  // Handle navigation to external sites
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(AETHERIUM_URL)) {
       event.preventDefault()
@@ -94,14 +74,7 @@ function createWindow() {
     }
   })
 
-  mainWindow.on('closed', () => {
-    mainWindow = null
-  })
-
-  // Minimize to tray
-  mainWindow.on('minimize', () => {
-    // Don't hide to tray on minimize for now
-  })
+  mainWindow.on('closed', () => { mainWindow = null })
 
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
@@ -111,28 +84,15 @@ function createWindow() {
     return false
   })
 
-  // Notify renderer when window becomes visible (for call reconnection)
-  mainWindow.on('show', () => {
-    mainWindow.webContents.send('window-shown')
-  })
-
-  mainWindow.on('restore', () => {
-    mainWindow.webContents.send('window-shown')
-  })
-
-  // Notify renderer of maximize state changes for title bar button
-  mainWindow.on('maximize', () => {
-    mainWindow.webContents.send('window-maximized-change', true)
-  })
-  mainWindow.on('unmaximize', () => {
-    mainWindow.webContents.send('window-maximized-change', false)
-  })
+  mainWindow.on('show', () => mainWindow.webContents.send('window-shown'))
+  mainWindow.on('restore', () => mainWindow.webContents.send('window-shown'))
+  mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized-change', true))
+  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized-change', false))
 }
 
 function createTray() {
   const iconPath = path.join(__dirname, 'resources', 'icon.png')
   const trayIcon = nativeImage.createFromPath(iconPath)
-  // Use 32x32 for better clarity on high DPI displays (Windows scales down as needed)
   tray = new Tray(trayIcon.resize({ width: 32, height: 32 }))
 
   const contextMenu = Menu.buildFromTemplate([
@@ -142,11 +102,22 @@ function createTray() {
         if (mainWindow) {
           mainWindow.show()
           mainWindow.focus()
-          // Notify renderer that window is now visible (for call reconnection)
           mainWindow.webContents.send('window-shown')
         }
       }
     },
+    {
+      label: 'Toggle Overlay',
+      type: 'checkbox',
+      checked: overlayEnabled,
+      click: (menuItem) => {
+        overlayEnabled = menuItem.checked
+        if (mainWindow) {
+          mainWindow.webContents.send('overlay-enabled-change', overlayEnabled)
+        }
+      }
+    },
+    { type: 'separator' },
     {
       label: 'Toggle Fullscreen',
       accelerator: 'F11',
@@ -173,12 +144,11 @@ function createTray() {
 
   tray.on('click', () => {
     if (mainWindow) {
-      if (mainWindow.isVisible()) {
+      if (mainWindow.isVisible() && mainWindow.isFocused()) {
         mainWindow.hide()
       } else {
         mainWindow.show()
         mainWindow.focus()
-        // Notify renderer that window is now visible (for call reconnection)
         mainWindow.webContents.send('window-shown')
       }
     }
@@ -186,33 +156,29 @@ function createTray() {
 }
 
 // ============================================
-// Notification Overlay System
+// Gaming Overlay System
 // ============================================
 
-function showOverlay(data) {
-  // Close existing overlay
+function createOverlayWindow() {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.close()
-    overlayWindow = null
+    return overlayWindow
   }
 
   const display = screen.getPrimaryDisplay()
   const { width: screenW, height: screenH } = display.workAreaSize
 
-  const overlayW = 380
-  const overlayH = data.type === 'call' ? 80 : 70
-
   overlayWindow = new BrowserWindow({
-    width: overlayW,
-    height: overlayH,
-    x: screenW - overlayW - 16,
-    y: screenH - overlayH - 16,
+    width: 400,
+    height: screenH,
+    x: screenW - 400,
+    y: 0,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
     focusable: false,
+    hasShadow: false,
     show: false,
     webPreferences: {
       nodeIntegration: true,
@@ -220,37 +186,71 @@ function showOverlay(data) {
     }
   })
 
-  overlayWindow.loadFile(path.join(__dirname, 'overlay.html'))
+  // Make click-through except on actual UI elements
+  overlayWindow.setIgnoreMouseEvents(true, { forward: true })
 
-  overlayWindow.once('ready-to-show', () => {
-    overlayWindow.showInactive()
-    overlayWindow.webContents.send('show-overlay', data)
-  })
+  overlayWindow.loadFile(path.join(__dirname, 'overlay.html'))
 
   overlayWindow.on('closed', () => {
     overlayWindow = null
   })
+
+  return overlayWindow
+}
+
+function showOverlay(data) {
+  if (!overlayEnabled) {
+    // Overlay disabled, use native notification instead
+    if (Notification.isSupported()) {
+      const notification = new Notification({
+        title: data.title || 'Aetherium',
+        body: data.body || '',
+        icon: path.join(__dirname, 'resources', 'icon.png')
+      })
+      notification.on('click', () => {
+        if (mainWindow) {
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      })
+      notification.show()
+    }
+    return
+  }
+
+  const overlay = createOverlayWindow()
+  
+  if (!overlay.isVisible()) {
+    overlay.showInactive()
+  }
+
+  // Enable mouse events on overlay cards
+  overlay.setIgnoreMouseEvents(false)
+
+  overlay.webContents.send('show-overlay', data)
 }
 
 function dismissOverlay() {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.close()
-    overlayWindow = null
+    overlayWindow.hide()
+    // Re-enable click-through when no notifications
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true })
   }
 }
 
 // Overlay IPC handlers
-ipcMain.on('overlay-clicked', () => {
-  dismissOverlay()
+ipcMain.on('overlay-clicked', (event, data) => {
   if (mainWindow) {
     mainWindow.show()
     mainWindow.focus()
     mainWindow.webContents.send('window-shown')
+    if (data?.conversationId) {
+      mainWindow.webContents.send('navigate-to-conversation', data.conversationId)
+    }
   }
 })
 
 ipcMain.on('overlay-answer-call', () => {
-  dismissOverlay()
   if (mainWindow) {
     mainWindow.show()
     mainWindow.focus()
@@ -260,7 +260,6 @@ ipcMain.on('overlay-answer-call', () => {
 })
 
 ipcMain.on('overlay-decline-call', () => {
-  dismissOverlay()
   if (mainWindow) {
     mainWindow.webContents.send('overlay-action', { action: 'decline-call' })
   }
@@ -272,7 +271,7 @@ ipcMain.on('overlay-dismiss', () => {
 
 // Handler for renderer to show overlay notifications
 ipcMain.handle('show-overlay-notification', (event, data) => {
-  // Only show overlay when window is hidden or minimized
+  // Only show overlay when window is hidden/minimized/unfocused
   if (mainWindow && (!mainWindow.isVisible() || mainWindow.isMinimized() || !mainWindow.isFocused())) {
     showOverlay(data)
     return true
@@ -280,27 +279,35 @@ ipcMain.handle('show-overlay-notification', (event, data) => {
   return false
 })
 
+// Toggle overlay from renderer
+ipcMain.handle('set-overlay-enabled', (event, enabled) => {
+  overlayEnabled = enabled
+  // Update tray menu
+  if (tray) {
+    const menu = tray.getContextMenu ? tray.getContextMenu() : null
+    // Rebuild tray menu with new state
+    createTray()
+  }
+  return overlayEnabled
+})
+
+ipcMain.handle('get-overlay-enabled', () => {
+  return overlayEnabled
+})
+
 // ============================================
-// Auto-updater configuration
+// Auto-updater
 // ============================================
 autoUpdater.autoDownload = true
 autoUpdater.autoInstallOnAppQuit = true
 
-// Auto-updater events
-autoUpdater.on('checking-for-update', () => {
-  console.log('Checking for updates...')
-})
+autoUpdater.on('checking-for-update', () => console.log('Checking for updates...'))
 
 autoUpdater.on('update-available', (info) => {
   console.log('Update available:', info.version)
-  // Notify user that an update is downloading
   if (mainWindow) {
-    mainWindow.webContents.send('update-available', {
-      version: info.version,
-      releaseNotes: info.releaseNotes
-    })
+    mainWindow.webContents.send('update-available', { version: info.version, releaseNotes: info.releaseNotes })
   }
-  // Show system notification
   if (Notification.isSupported()) {
     new Notification({
       title: 'Aetherium Update Available',
@@ -310,54 +317,38 @@ autoUpdater.on('update-available', (info) => {
   }
 })
 
-autoUpdater.on('update-not-available', () => {
-  console.log('App is up to date')
-})
+autoUpdater.on('update-not-available', () => console.log('App is up to date'))
 
 autoUpdater.on('download-progress', (progress) => {
   console.log(`Download progress: ${Math.round(progress.percent)}%`)
   if (mainWindow) {
-    mainWindow.webContents.send('update-progress', {
-      percent: progress.percent,
-      transferred: progress.transferred,
-      total: progress.total
-    })
+    mainWindow.webContents.send('update-progress', { percent: progress.percent, transferred: progress.transferred, total: progress.total })
   }
 })
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('Update downloaded:', info.version)
-  // Notify user and let them choose when to restart
   if (mainWindow) {
-    mainWindow.webContents.send('update-downloaded', {
-      version: info.version
-    })
+    mainWindow.webContents.send('update-downloaded', { version: info.version })
   }
-  // Show system notification with action
   if (Notification.isSupported()) {
     const notification = new Notification({
       title: 'Aetherium Update Ready',
-      body: `Version ${info.version} is ready to install. Click to restart now.`,
+      body: `Version ${info.version} is ready. Click to restart.`,
       icon: path.join(__dirname, 'resources', 'icon.png')
     })
-    notification.on('click', () => {
-      autoUpdater.quitAndInstall(false, true)
-    })
+    notification.on('click', () => autoUpdater.quitAndInstall(false, true))
     notification.show()
   }
 })
 
 autoUpdater.on('error', (err) => {
   console.error('Auto-updater error:', err)
-  if (mainWindow) {
-    mainWindow.webContents.send('update-error', {
-      message: err.message
-    })
-  }
+  if (mainWindow) mainWindow.webContents.send('update-error', { message: err.message })
 })
 
 // ============================================
-// Custom Screen Picker for Screen Sharing
+// Screen Sharing
 // ============================================
 let screenPickerWindow = null
 
@@ -368,7 +359,6 @@ async function getScreenSources() {
       thumbnailSize: { width: 320, height: 180 },
       fetchWindowIcons: true
     })
-
     return sources.map(source => ({
       id: source.id,
       name: source.name,
@@ -390,9 +380,7 @@ function createScreenPickerWindow() {
 
     const display = screen.getPrimaryDisplay()
     const { width: screenW, height: screenH } = display.workAreaSize
-
-    const pickerW = 800
-    const pickerH = 600
+    const pickerW = 800, pickerH = 600
 
     screenPickerWindow = new BrowserWindow({
       width: pickerW,
@@ -405,22 +393,17 @@ function createScreenPickerWindow() {
       transparent: false,
       resizable: false,
       backgroundColor: '#1e1f22',
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false
-      }
+      webPreferences: { nodeIntegration: true, contextIsolation: false }
     })
 
     screenPickerWindow.loadFile(path.join(__dirname, 'screen-picker.html'))
 
-    // Handle source selection
     ipcMain.once('screen-picker-select', (event, sourceId) => {
       screenPickerWindow.close()
       screenPickerWindow = null
       resolve(sourceId)
     })
 
-    // Handle cancel
     ipcMain.once('screen-picker-cancel', () => {
       screenPickerWindow.close()
       screenPickerWindow = null
@@ -429,7 +412,6 @@ function createScreenPickerWindow() {
 
     screenPickerWindow.on('closed', () => {
       screenPickerWindow = null
-      // Clean up listeners if window closed without selection
       ipcMain.removeAllListeners('screen-picker-select')
       ipcMain.removeAllListeners('screen-picker-cancel')
       resolve(null)
@@ -437,33 +419,19 @@ function createScreenPickerWindow() {
   })
 }
 
-// IPC handler to get screen sources
-ipcMain.handle('get-screen-sources', async () => {
-  return await getScreenSources()
-})
+ipcMain.handle('get-screen-sources', async () => await getScreenSources())
+ipcMain.handle('open-screen-picker', async () => await createScreenPickerWindow())
+ipcMain.handle('get-source-stream', async (event, sourceId, constraints) => ({ sourceId, constraints }))
 
-// IPC handler to open screen picker
-ipcMain.handle('open-screen-picker', async () => {
-  const sourceId = await createScreenPickerWindow()
-  return sourceId
-})
-
-// IPC handler to get stream from source ID
-ipcMain.handle('get-source-stream', async (event, sourceId, constraints) => {
-  // This will be handled by the renderer using the sourceId
-  // The main process just returns the sourceId, renderer uses navigator.mediaDevices.getUserMedia
-  return { sourceId, constraints }
-})
-
+// ============================================
+// App Lifecycle
+// ============================================
 app.whenReady().then(() => {
   createWindow()
   createTray()
 
-  // Register F11 for fullscreen toggle
   globalShortcut.register('F11', () => {
-    if (mainWindow) {
-      mainWindow.setFullScreen(!mainWindow.isFullScreen())
-    }
+    if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen())
   })
 
   app.on('activate', () => {
@@ -476,9 +444,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  if (process.platform !== 'darwin') app.quit()
 })
 
 app.on('before-quit', () => {
@@ -486,7 +452,9 @@ app.on('before-quit', () => {
   globalShortcut.unregisterAll()
 })
 
-// Handle notification requests from renderer
+// ============================================
+// IPC Handlers
+// ============================================
 ipcMain.handle('show-notification', (event, { title, body }) => {
   if (Notification.isSupported()) {
     const notification = new Notification({
@@ -494,49 +462,28 @@ ipcMain.handle('show-notification', (event, { title, body }) => {
       body: body || '',
       icon: path.join(__dirname, 'resources', 'icon.png')
     })
-
     notification.on('click', () => {
-      if (mainWindow) {
-        mainWindow.show()
-        mainWindow.focus()
-      }
+      if (mainWindow) { mainWindow.show(); mainWindow.focus() }
     })
-
     notification.show()
     return true
   }
   return false
 })
 
-// Custom title bar window controls
-ipcMain.on('window-minimize', () => {
-  if (mainWindow) mainWindow.minimize()
-})
-
+// Window controls
+ipcMain.on('window-minimize', () => { if (mainWindow) mainWindow.minimize() })
 ipcMain.on('window-maximize', () => {
   if (mainWindow) {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize()
-    } else {
-      mainWindow.maximize()
-    }
+    if (mainWindow.isMaximized()) mainWindow.unmaximize()
+    else mainWindow.maximize()
   }
 })
+ipcMain.on('window-close', () => { if (mainWindow) mainWindow.close() })
+ipcMain.handle('window-is-maximized', () => mainWindow ? mainWindow.isMaximized() : false)
 
-ipcMain.on('window-close', () => {
-  if (mainWindow) mainWindow.close()
-})
-
-ipcMain.handle('window-is-maximized', () => {
-  return mainWindow ? mainWindow.isMaximized() : false
-})
-
-// IPC handler for manual update install
-ipcMain.on('install-update', () => {
-  autoUpdater.quitAndInstall(false, true)
-})
-
-// IPC handler for manual update check
+// Updates
+ipcMain.on('install-update', () => autoUpdater.quitAndInstall(false, true))
 ipcMain.handle('check-for-updates', async () => {
   try {
     const result = await autoUpdater.checkForUpdates()
@@ -546,7 +493,19 @@ ipcMain.handle('check-for-updates', async () => {
   }
 })
 
-// Get current app version
-ipcMain.handle('get-app-version', () => {
-  return app.getVersion()
+ipcMain.handle('get-app-version', () => app.getVersion())
+
+ipcMain.handle('clear-cache-and-reload', async () => {
+  if (mainWindow) {
+    try {
+      await mainWindow.webContents.session.clearCache()
+      await mainWindow.webContents.session.clearStorageData({ storages: ['cachestorage', 'serviceworkers'] })
+      mainWindow.webContents.reloadIgnoringCache()
+      return { success: true }
+    } catch (err) {
+      console.error('Failed to clear cache:', err)
+      return { success: false, error: err.message }
+    }
+  }
+  return { success: false, error: 'No window' }
 })
