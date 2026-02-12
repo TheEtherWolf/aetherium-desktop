@@ -566,9 +566,6 @@ ipcMain.on('install-update', () => {
   autoUpdater.quitAndInstall(false, true)
 })
 
-// IPC handler to get current app version
-ipcMain.handle('get-app-version', () => app.getVersion())
-
 // ============================================
 // App Lifecycle
 // ============================================
