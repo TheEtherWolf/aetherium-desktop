@@ -31,10 +31,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('overlay-enabled-change', (event, enabled) => callback(enabled))
   },
 
-  // Listen for overlay actions (answer/decline call from overlay)
+  // Listen for overlay actions (answer/decline call, mute, hangup from overlay)
   onOverlayAction: (callback) => {
     ipcRenderer.on('overlay-action', (event, data) => callback(data))
   },
+
+  // Active call overlay (shows when in call and app is unfocused)
+  showActiveCallOverlay: (data) => ipcRenderer.invoke('show-active-call-overlay', data),
+  updateActiveCallOverlay: (data) => ipcRenderer.invoke('update-active-call-overlay', data),
+  hideActiveCallOverlay: () => ipcRenderer.invoke('hide-active-call-overlay'),
 
   // Listen for navigation requests (clicking overlay card)
   onNavigateToConversation: (callback) => {

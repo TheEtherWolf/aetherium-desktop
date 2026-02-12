@@ -269,6 +269,79 @@ ipcMain.on('overlay-dismiss', () => {
   dismissOverlay()
 })
 
+// ============================================
+// Active Call Overlay
+// ============================================
+let activeCallData = null
+
+function showActiveCallOverlay(data) {
+  if (!overlayEnabled) return
+  
+  activeCallData = data
+  const overlay = createOverlayWindow()
+  
+  if (!overlay.isVisible()) {
+    overlay.showInactive()
+  }
+  overlay.setIgnoreMouseEvents(false)
+  overlay.webContents.send('show-active-call', data)
+}
+
+function updateActiveCallOverlay(data) {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return
+  activeCallData = { ...activeCallData, ...data }
+  overlayWindow.webContents.send('update-active-call', data)
+}
+
+function hideActiveCallOverlay() {
+  activeCallData = null
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('hide-active-call')
+  }
+}
+
+// Active call IPC handlers
+ipcMain.on('active-call-clicked', () => {
+  if (mainWindow) {
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.webContents.send('window-shown')
+  }
+})
+
+ipcMain.on('active-call-mute', () => {
+  if (mainWindow) {
+    mainWindow.webContents.send('overlay-action', { action: 'toggle-mute' })
+  }
+})
+
+ipcMain.on('active-call-hangup', () => {
+  hideActiveCallOverlay()
+  if (mainWindow) {
+    mainWindow.webContents.send('overlay-action', { action: 'hangup' })
+  }
+})
+
+// Handlers for renderer to control active call overlay
+ipcMain.handle('show-active-call-overlay', (event, data) => {
+  // Only show when window is not focused
+  if (mainWindow && (!mainWindow.isVisible() || mainWindow.isMinimized() || !mainWindow.isFocused())) {
+    showActiveCallOverlay(data)
+    return true
+  }
+  return false
+})
+
+ipcMain.handle('update-active-call-overlay', (event, data) => {
+  updateActiveCallOverlay(data)
+  return true
+})
+
+ipcMain.handle('hide-active-call-overlay', () => {
+  hideActiveCallOverlay()
+  return true
+})
+
 // Handler for renderer to show overlay notifications
 ipcMain.handle('show-overlay-notification', (event, data) => {
   // Only show overlay when window is hidden/minimized/unfocused

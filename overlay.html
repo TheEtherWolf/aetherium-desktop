@@ -320,12 +320,157 @@
     color: #6366f1;
   }
 
+  /* Active call overlay - persistent while in call */
+  .active-call-overlay {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    background: rgba(18, 18, 24, 0.88);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 16px;
+    padding: 12px 16px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(34, 197, 94, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    min-width: 200px;
+  }
+
+  @keyframes slideUp {
+    from { 
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to { 
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .active-call-overlay.hiding {
+    animation: slideDown 0.2s ease-out forwards;
+  }
+
+  @keyframes slideDown {
+    to { 
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+
+  .active-call-overlay:hover {
+    background: rgba(24, 24, 32, 0.92);
+  }
+
+  .active-call-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .active-call-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  /* Pulsing ring around avatar during call */
+  .active-call-avatar::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px solid rgba(34, 197, 94, 0.5);
+    animation: callRing 1.5s ease-in-out infinite;
+  }
+
+  @keyframes callRing {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.1); opacity: 0.2; }
+  }
+
+  .active-call-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .active-call-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f1f5f9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .active-call-timer {
+    font-size: 12px;
+    color: #22c55e;
+    font-weight: 500;
+    font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  }
+
+  .active-call-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .active-call-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, background 0.15s ease;
+    background: rgba(255, 255, 255, 0.1);
+    color: #f1f5f9;
+  }
+
+  .active-call-btn:hover {
+    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .active-call-btn.muted {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+  }
+
+  .active-call-btn.hangup {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+  }
+
+  .active-call-btn.hangup:hover {
+    background: linear-gradient(135deg, #f87171, #ef4444);
+  }
+
   /* Reduced motion */
   @media (prefers-reduced-motion: reduce) {
     .overlay-card,
     .overlay-card.hiding,
     .call-btn,
-    .progress-bar {
+    .progress-bar,
+    .active-call-overlay,
+    .active-call-avatar::before {
       animation: none;
       transition: none;
     }
@@ -459,6 +604,132 @@
 
   // Expose dismiss for external calls
   window.dismissCard = dismissCard;
+
+  // ============================================
+  // Active Call Overlay
+  // ============================================
+  let activeCallElement = null;
+  let callTimerInterval = null;
+  let callStartTime = null;
+  let isMuted = false;
+
+  ipcRenderer.on('show-active-call', (event, data) => {
+    showActiveCall(data);
+  });
+
+  ipcRenderer.on('update-active-call', (event, data) => {
+    updateActiveCall(data);
+  });
+
+  ipcRenderer.on('hide-active-call', () => {
+    hideActiveCall();
+  });
+
+  function showActiveCall(data) {
+    hideActiveCall(); // Remove existing if any
+
+    callStartTime = data.startTime ? new Date(data.startTime) : new Date();
+    isMuted = data.isMuted || false;
+
+    const el = document.createElement('div');
+    el.className = 'active-call-overlay';
+    el.id = 'active-call';
+    el.onclick = () => ipcRenderer.send('active-call-clicked');
+
+    let html = '';
+
+    // Avatar
+    if (data.avatar) {
+      html += `<div class="active-call-avatar"><img src="${escapeHtml(data.avatar)}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${(data.name || '?').charAt(0).toUpperCase()}';"></div>`;
+    } else {
+      const initials = (data.name || '?').charAt(0).toUpperCase();
+      html += `<div class="active-call-avatar">${initials}</div>`;
+    }
+
+    // Info
+    html += `<div class="active-call-info">`;
+    html += `<div class="active-call-name">${escapeHtml(data.name || 'Call')}</div>`;
+    html += `<div class="active-call-timer" id="call-timer">00:00</div>`;
+    html += `</div>`;
+
+    // Actions
+    html += `<div class="active-call-actions">`;
+    html += `<button class="active-call-btn ${isMuted ? 'muted' : ''}" id="mute-btn" onclick="event.stopPropagation(); toggleMute();" title="${isMuted ? 'Unmute' : 'Mute'}">`;
+    html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+    if (isMuted) {
+      html += `<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
+    } else {
+      html += `<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
+    }
+    html += `</svg></button>`;
+    html += `<button class="active-call-btn hangup" onclick="event.stopPropagation(); hangupCall();" title="End Call">`;
+    html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" y1="2" x2="2" y2="22"/></svg>`;
+    html += `</button>`;
+    html += `</div>`;
+
+    el.innerHTML = html;
+    document.body.appendChild(el);
+    activeCallElement = el;
+
+    // Start timer
+    updateCallTimer();
+    callTimerInterval = setInterval(updateCallTimer, 1000);
+  }
+
+  function updateActiveCall(data) {
+    if (!activeCallElement) return;
+
+    if (typeof data.isMuted === 'boolean' && data.isMuted !== isMuted) {
+      isMuted = data.isMuted;
+      const muteBtn = document.getElementById('mute-btn');
+      if (muteBtn) {
+        muteBtn.className = `active-call-btn ${isMuted ? 'muted' : ''}`;
+        muteBtn.title = isMuted ? 'Unmute' : 'Mute';
+        // Update icon
+        let iconHtml = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+        if (isMuted) {
+          iconHtml += `<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
+        } else {
+          iconHtml += `<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
+        }
+        iconHtml += `</svg>`;
+        muteBtn.innerHTML = iconHtml;
+      }
+    }
+  }
+
+  function hideActiveCall() {
+    if (callTimerInterval) {
+      clearInterval(callTimerInterval);
+      callTimerInterval = null;
+    }
+    if (activeCallElement) {
+      activeCallElement.classList.add('hiding');
+      setTimeout(() => {
+        activeCallElement?.remove();
+        activeCallElement = null;
+      }, 200);
+    }
+  }
+
+  function updateCallTimer() {
+    if (!callStartTime) return;
+    const timerEl = document.getElementById('call-timer');
+    if (!timerEl) return;
+
+    const elapsed = Math.floor((Date.now() - callStartTime.getTime()) / 1000);
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    timerEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+
+  function toggleMute() {
+    ipcRenderer.send('active-call-mute');
+  }
+
+  function hangupCall() {
+    ipcRenderer.send('active-call-hangup');
+  }
 </script>
 </body>
 </html>
