@@ -68,7 +68,7 @@
       "license": "LICENSE.txt",
       "shortcutName": "Aetherium",
       "uninstallDisplayName": "Aetherium",
-      "artifactName": "Aetherium-Setup-${version}.${ext}",
+      "artifactName": "Aetherium-Setup.${ext}",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false
     },
