@@ -497,6 +497,79 @@ ipcMain.handle('open-screen-picker', async () => await createScreenPickerWindow(
 ipcMain.handle('get-source-stream', async (event, sourceId, constraints) => ({ sourceId, constraints }))
 
 // ============================================
+// Auto-Updater Events
+// ============================================
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = true
+
+autoUpdater.on('checking-for-update', () => {
+  console.log('[AutoUpdater] Checking for updates...')
+})
+
+autoUpdater.on('update-available', (info) => {
+  console.log('[AutoUpdater] Update available:', info.version)
+  // Notify the renderer about the update
+  if (mainWindow) {
+    mainWindow.webContents.send('update-available', {
+      currentVersion: app.getVersion(),
+      newVersion: info.version
+    })
+  }
+  // Show system notification
+  if (Notification.isSupported()) {
+    const notification = new Notification({
+      title: 'Aetherium Update Available',
+      body: `Version ${info.version} is available. Downloading...`,
+      icon: path.join(__dirname, 'resources', 'icon.png')
+    })
+    notification.show()
+  }
+})
+
+autoUpdater.on('update-not-available', () => {
+  console.log('[AutoUpdater] App is up to date')
+})
+
+autoUpdater.on('download-progress', (progress) => {
+  console.log(`[AutoUpdater] Download progress: ${Math.round(progress.percent)}%`)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-progress', progress.percent)
+  }
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('[AutoUpdater] Update downloaded:', info.version)
+  // Notify user and offer to restart
+  if (Notification.isSupported()) {
+    const notification = new Notification({
+      title: 'Aetherium Update Ready',
+      body: `Version ${info.version} has been downloaded. Click to restart and update.`,
+      icon: path.join(__dirname, 'resources', 'icon.png')
+    })
+    notification.on('click', () => {
+      autoUpdater.quitAndInstall(false, true)
+    })
+    notification.show()
+  }
+  // Also notify renderer
+  if (mainWindow) {
+    mainWindow.webContents.send('update-ready', info.version)
+  }
+})
+
+autoUpdater.on('error', (err) => {
+  console.error('[AutoUpdater] Error:', err)
+})
+
+// IPC handler for manual update install
+ipcMain.on('install-update', () => {
+  autoUpdater.quitAndInstall(false, true)
+})
+
+// IPC handler to get current app version
+ipcMain.handle('get-app-version', () => app.getVersion())
+
+// ============================================
 // App Lifecycle
 // ============================================
 app.whenReady().then(() => {
