@@ -603,6 +603,14 @@ app.whenReady().then(() => {
     if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen())
   })
 
+  // DevTools shortcut
+  globalShortcut.register('F12', () => {
+    if (mainWindow) mainWindow.webContents.toggleDevTools()
+  })
+  globalShortcut.register('CommandOrControl+Shift+I', () => {
+    if (mainWindow) mainWindow.webContents.toggleDevTools()
+  })
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
