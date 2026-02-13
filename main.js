@@ -344,11 +344,22 @@ ipcMain.handle('hide-active-call-overlay', () => {
 
 // Handler for renderer to show overlay notifications
 ipcMain.handle('show-overlay-notification', (event, data) => {
+  console.log('[Overlay] show-overlay-notification called:', data)
+  console.log('[Overlay] overlayEnabled:', overlayEnabled)
+  console.log('[Overlay] mainWindow exists:', !!mainWindow)
+  if (mainWindow) {
+    console.log('[Overlay] isVisible:', mainWindow.isVisible())
+    console.log('[Overlay] isMinimized:', mainWindow.isMinimized())
+    console.log('[Overlay] isFocused:', mainWindow.isFocused())
+  }
+  
   // Only show overlay when window is hidden/minimized/unfocused
   if (mainWindow && (!mainWindow.isVisible() || mainWindow.isMinimized() || !mainWindow.isFocused())) {
+    console.log('[Overlay] Showing overlay!')
     showOverlay(data)
     return true
   }
+  console.log('[Overlay] NOT showing overlay - window is focused/visible')
   return false
 })
 

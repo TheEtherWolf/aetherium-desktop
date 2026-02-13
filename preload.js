@@ -115,12 +115,17 @@ window.addEventListener('DOMContentLoaded', () => {
       this.tag = options.tag || null
       this.data = options.data || {}
 
+      console.log('[Preload] ElectronNotification created:', title, options)
+      console.log('[Preload] document.hasFocus():', document.hasFocus())
+
       // Don't show notification if window is focused
       // The main process handles this check too, but we can skip the IPC
       if (document.hasFocus()) {
+        console.log('[Preload] Skipping - document has focus')
         return
       }
 
+      console.log('[Preload] Sending show-overlay-notification IPC')
       // Show overlay notification
       ipcRenderer.invoke('show-overlay-notification', {
         type: this.data.type || 'message',
@@ -129,6 +134,8 @@ window.addEventListener('DOMContentLoaded', () => {
         avatar: this.icon,
         conversationId: this.data.conversationId,
         duration: this.data.duration
+      }).then(result => {
+        console.log('[Preload] show-overlay-notification result:', result)
       })
     }
 
