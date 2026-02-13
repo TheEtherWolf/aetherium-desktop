@@ -1,6 +1,16 @@
 const { app, BrowserWindow, shell, Menu, Tray, nativeImage, globalShortcut, Notification, ipcMain, screen, desktopCapturer } = require('electron')
 const path = require('path')
+const fs = require('fs')
 const { autoUpdater } = require('electron-updater')
+
+// Debug logging to file
+const logFile = path.join(app.getPath('userData'), 'overlay-debug.log')
+function debugLog(...args) {
+  const timestamp = new Date().toISOString()
+  const message = `[${timestamp}] ${args.join(' ')}\n`
+  fs.appendFileSync(logFile, message)
+  console.log(...args)
+}
 
 // The URL of the deployed Aetherium web app
 const AETHERIUM_URL = 'https://aetherium-89dr.onrender.com/'
@@ -344,22 +354,22 @@ ipcMain.handle('hide-active-call-overlay', () => {
 
 // Handler for renderer to show overlay notifications
 ipcMain.handle('show-overlay-notification', (event, data) => {
-  console.log('[Overlay] show-overlay-notification called:', data)
-  console.log('[Overlay] overlayEnabled:', overlayEnabled)
-  console.log('[Overlay] mainWindow exists:', !!mainWindow)
+  debugLog('[Overlay] show-overlay-notification called:', JSON.stringify(data))
+  debugLog('[Overlay] overlayEnabled:', overlayEnabled)
+  debugLog('[Overlay] mainWindow exists:', !!mainWindow)
   if (mainWindow) {
-    console.log('[Overlay] isVisible:', mainWindow.isVisible())
-    console.log('[Overlay] isMinimized:', mainWindow.isMinimized())
-    console.log('[Overlay] isFocused:', mainWindow.isFocused())
+    debugLog('[Overlay] isVisible:', mainWindow.isVisible())
+    debugLog('[Overlay] isMinimized:', mainWindow.isMinimized())
+    debugLog('[Overlay] isFocused:', mainWindow.isFocused())
   }
   
   // Only show overlay when window is hidden/minimized/unfocused
   if (mainWindow && (!mainWindow.isVisible() || mainWindow.isMinimized() || !mainWindow.isFocused())) {
-    console.log('[Overlay] Showing overlay!')
+    debugLog('[Overlay] Showing overlay!')
     showOverlay(data)
     return true
   }
-  console.log('[Overlay] NOT showing overlay - window is focused/visible')
+  debugLog('[Overlay] NOT showing overlay - window is focused/visible')
   return false
 })
 
@@ -581,6 +591,11 @@ ipcMain.on('install-update', () => {
 // App Lifecycle
 // ============================================
 app.whenReady().then(() => {
+  // Clear old log and start fresh
+  fs.writeFileSync(logFile, `=== Aetherium Desktop Started ${new Date().toISOString()} ===\n`)
+  debugLog('Log file:', logFile)
+  debugLog('App version:', app.getVersion())
+  
   createWindow()
   createTray()
 
