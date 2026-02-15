@@ -648,6 +648,15 @@ ipcMain.handle('show-notification', (event, { title, body }) => {
   return false
 })
 
+// Open external URL in default browser
+ipcMain.handle('open-external', (event, url) => {
+  if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+    shell.openExternal(url)
+    return true
+  }
+  return false
+})
+
 // Window controls
 ipcMain.on('window-minimize', () => { if (mainWindow) mainWindow.minimize() })
 ipcMain.on('window-maximize', () => {

@@ -70,6 +70,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // ============================================
+  // External Links
+  // ============================================
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
+  // ============================================
   // Auto-updater
   // ============================================
   autoUpdater: {
