@@ -102,12 +102,8 @@ function createWindow() {
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized-change', false))
 }
 
-function createTray() {
-  const iconPath = path.join(__dirname, 'resources', 'icon.png')
-  const trayIcon = nativeImage.createFromPath(iconPath)
-  tray = new Tray(trayIcon.resize({ width: 32, height: 32 }))
-
-  const contextMenu = Menu.buildFromTemplate([
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
     {
       label: 'Open Aetherium',
       click: () => {
@@ -150,9 +146,21 @@ function createTray() {
       }
     }
   ])
+}
+
+function createTray() {
+  // Don't create duplicate trays
+  if (tray && !tray.isDestroyed()) {
+    tray.setContextMenu(buildTrayMenu())
+    return
+  }
+
+  const iconPath = path.join(__dirname, 'resources', 'icon.png')
+  const trayIcon = nativeImage.createFromPath(iconPath)
+  tray = new Tray(trayIcon.resize({ width: 32, height: 32 }))
 
   tray.setToolTip('Aetherium')
-  tray.setContextMenu(contextMenu)
+  tray.setContextMenu(buildTrayMenu())
 
   tray.on('click', () => {
     if (mainWindow) {
@@ -356,22 +364,35 @@ ipcMain.handle('hide-active-call-overlay', () => {
 
 // Handler for renderer to show overlay notifications
 ipcMain.handle('show-overlay-notification', (event, data) => {
-  debugLog('[Overlay] show-overlay-notification called:', JSON.stringify(data))
+  debugLog('[Overlay] === show-overlay-notification ===')
+  debugLog('[Overlay] data:', JSON.stringify(data))
   debugLog('[Overlay] overlayEnabled:', overlayEnabled)
-  debugLog('[Overlay] mainWindow exists:', !!mainWindow)
-  if (mainWindow) {
-    debugLog('[Overlay] isVisible:', mainWindow.isVisible())
-    debugLog('[Overlay] isMinimized:', mainWindow.isMinimized())
-    debugLog('[Overlay] isFocused:', mainWindow.isFocused())
+  
+  if (!mainWindow) {
+    debugLog('[Overlay] ERROR: mainWindow is null!')
+    return false
   }
   
-  // Only show overlay when window is hidden/minimized/unfocused
-  if (mainWindow && (!mainWindow.isVisible() || mainWindow.isMinimized() || !mainWindow.isFocused())) {
-    debugLog('[Overlay] Showing overlay!')
+  const isVisible = mainWindow.isVisible()
+  const isMinimized = mainWindow.isMinimized()
+  const isFocused = mainWindow.isFocused()
+  
+  debugLog('[Overlay] isVisible:', isVisible)
+  debugLog('[Overlay] isMinimized:', isMinimized)
+  debugLog('[Overlay] isFocused:', isFocused)
+  
+  // Show overlay when window is hidden/minimized/unfocused
+  const shouldShow = !isVisible || isMinimized || !isFocused
+  debugLog('[Overlay] shouldShow:', shouldShow)
+  
+  if (shouldShow) {
+    debugLog('[Overlay] Calling showOverlay()...')
     showOverlay(data)
+    debugLog('[Overlay] showOverlay() completed')
     return true
   }
-  debugLog('[Overlay] NOT showing overlay - window is focused/visible')
+  
+  debugLog('[Overlay] NOT showing - window is visible and focused')
   return false
 })
 
