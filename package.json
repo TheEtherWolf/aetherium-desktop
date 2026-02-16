@@ -1,6 +1,6 @@
 {
   "name": "aetherium-desktop",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Aetherium Chat Desktop Application",
   "main": "main.js",
   "author": "Aetherium",
@@ -31,6 +31,7 @@
       "preload.js",
       "overlay.html",
       "screen-picker.html",
+      "update-window.html",
       "resources/**/*"
     ],
     "win": {

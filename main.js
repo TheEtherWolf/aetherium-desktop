@@ -19,6 +19,8 @@ let mainWindow
 let tray = null
 let overlayWindow = null
 let overlayEnabled = true // Can be toggled from settings
+let updateWindow = null
+let updateInfo = null // Store update info for the update window
 
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock()
@@ -390,55 +392,146 @@ ipcMain.handle('get-overlay-enabled', () => {
 })
 
 // ============================================
-// Auto-updater
+// Styled Update Window
 // ============================================
-autoUpdater.autoDownload = true
-autoUpdater.autoInstallOnAppQuit = true
-
-autoUpdater.on('checking-for-update', () => console.log('Checking for updates...'))
-
-autoUpdater.on('update-available', (info) => {
-  console.log('Update available:', info.version)
-  if (mainWindow) {
-    mainWindow.webContents.send('update-available', { version: info.version, releaseNotes: info.releaseNotes })
+function createUpdateWindow() {
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.focus()
+    return
   }
-  if (Notification.isSupported()) {
-    new Notification({
-      title: 'Aetherium Update Available',
-      body: `Version ${info.version} is downloading...`,
-      icon: path.join(__dirname, 'resources', 'icon.png')
-    }).show()
+
+  const display = screen.getPrimaryDisplay()
+  const { width: screenW, height: screenH } = display.workAreaSize
+
+  updateWindow = new BrowserWindow({
+    width: 450,
+    height: 480,
+    x: Math.round((screenW - 450) / 2),
+    y: Math.round((screenH - 480) / 2),
+    parent: mainWindow,
+    modal: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    skipTaskbar: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  })
+
+  updateWindow.loadFile(path.join(__dirname, 'update-window.html'))
+
+  updateWindow.once('ready-to-show', () => {
+    if (updateInfo) {
+      updateWindow.webContents.send('update-info', {
+        currentVersion: app.getVersion(),
+        newVersion: updateInfo.version,
+        releaseNotes: updateInfo.releaseNotes
+      })
+    }
+  })
+
+  updateWindow.on('closed', () => {
+    updateWindow = null
+  })
+}
+
+// Update window IPC handlers
+ipcMain.on('start-update-download', () => {
+  console.log('[AutoUpdater] Starting download from update window')
+  autoUpdater.downloadUpdate()
+})
+
+ipcMain.on('update-later', () => {
+  console.log('[AutoUpdater] User chose to update later')
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.close()
   }
 })
 
-autoUpdater.on('update-not-available', () => console.log('App is up to date'))
+// ============================================
+// Auto-updater Configuration
+// ============================================
+autoUpdater.autoDownload = false // Don't auto-download, let user initiate
+autoUpdater.autoInstallOnAppQuit = true
+
+autoUpdater.on('checking-for-update', () => {
+  console.log('[AutoUpdater] Checking for updates...')
+})
+
+autoUpdater.on('update-available', (info) => {
+  console.log('[AutoUpdater] Update available:', info.version)
+  updateInfo = info
+  
+  // Show the styled update window
+  createUpdateWindow()
+  
+  // Also notify the main window (for in-app indicator)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-available', { 
+      version: info.version, 
+      releaseNotes: info.releaseNotes 
+    })
+  }
+})
+
+autoUpdater.on('update-not-available', () => {
+  console.log('[AutoUpdater] App is up to date')
+})
 
 autoUpdater.on('download-progress', (progress) => {
-  console.log(`Download progress: ${Math.round(progress.percent)}%`)
+  console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`)
+  
+  // Send to update window
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.webContents.send('download-progress', {
+      percent: progress.percent,
+      transferred: progress.transferred,
+      total: progress.total,
+      bytesPerSecond: progress.bytesPerSecond
+    })
+  }
+  
+  // Send to main window too
   if (mainWindow) {
-    mainWindow.webContents.send('update-progress', { percent: progress.percent, transferred: progress.transferred, total: progress.total })
+    mainWindow.webContents.send('update-progress', { 
+      percent: progress.percent, 
+      transferred: progress.transferred, 
+      total: progress.total 
+    })
   }
 })
 
 autoUpdater.on('update-downloaded', (info) => {
-  console.log('Update downloaded:', info.version)
+  console.log('[AutoUpdater] Download complete:', info.version)
+  
+  // Notify update window
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.webContents.send('update-downloaded', { version: info.version })
+  }
+  
+  // Notify main window
   if (mainWindow) {
     mainWindow.webContents.send('update-downloaded', { version: info.version })
-  }
-  if (Notification.isSupported()) {
-    const notification = new Notification({
-      title: 'Aetherium Update Ready',
-      body: `Version ${info.version} is ready. Click to restart.`,
-      icon: path.join(__dirname, 'resources', 'icon.png')
-    })
-    notification.on('click', () => autoUpdater.quitAndInstall(false, true))
-    notification.show()
   }
 })
 
 autoUpdater.on('error', (err) => {
-  console.error('Auto-updater error:', err)
-  if (mainWindow) mainWindow.webContents.send('update-error', { message: err.message })
+  console.error('[AutoUpdater] Error:', err)
+  
+  // Notify update window
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.webContents.send('update-error', { message: err.message })
+  }
+  
+  // Notify main window
+  if (mainWindow) {
+    mainWindow.webContents.send('update-error', { message: err.message })
+  }
 })
 
 // ============================================
@@ -517,74 +610,23 @@ ipcMain.handle('get-screen-sources', async () => await getScreenSources())
 ipcMain.handle('open-screen-picker', async () => await createScreenPickerWindow())
 ipcMain.handle('get-source-stream', async (event, sourceId, constraints) => ({ sourceId, constraints }))
 
-// ============================================
-// Auto-Updater Events
-// ============================================
-autoUpdater.autoDownload = true
-autoUpdater.autoInstallOnAppQuit = true
-
-autoUpdater.on('checking-for-update', () => {
-  console.log('[AutoUpdater] Checking for updates...')
-})
-
-autoUpdater.on('update-available', (info) => {
-  console.log('[AutoUpdater] Update available:', info.version)
-  // Notify the renderer about the update
-  if (mainWindow) {
-    mainWindow.webContents.send('update-available', {
-      currentVersion: app.getVersion(),
-      newVersion: info.version
-    })
-  }
-  // Show system notification
-  if (Notification.isSupported()) {
-    const notification = new Notification({
-      title: 'Aetherium Update Available',
-      body: `Version ${info.version} is available. Downloading...`,
-      icon: path.join(__dirname, 'resources', 'icon.png')
-    })
-    notification.show()
-  }
-})
-
-autoUpdater.on('update-not-available', () => {
-  console.log('[AutoUpdater] App is up to date')
-})
-
-autoUpdater.on('download-progress', (progress) => {
-  console.log(`[AutoUpdater] Download progress: ${Math.round(progress.percent)}%`)
-  if (mainWindow) {
-    mainWindow.webContents.send('update-progress', progress.percent)
-  }
-})
-
-autoUpdater.on('update-downloaded', (info) => {
-  console.log('[AutoUpdater] Update downloaded:', info.version)
-  // Notify user and offer to restart
-  if (Notification.isSupported()) {
-    const notification = new Notification({
-      title: 'Aetherium Update Ready',
-      body: `Version ${info.version} has been downloaded. Click to restart and update.`,
-      icon: path.join(__dirname, 'resources', 'icon.png')
-    })
-    notification.on('click', () => {
-      autoUpdater.quitAndInstall(false, true)
-    })
-    notification.show()
-  }
-  // Also notify renderer
-  if (mainWindow) {
-    mainWindow.webContents.send('update-ready', info.version)
-  }
-})
-
-autoUpdater.on('error', (err) => {
-  console.error('[AutoUpdater] Error:', err)
-})
-
-// IPC handler for manual update install
+// IPC handler for manual update install (from update window or main window)
 ipcMain.on('install-update', () => {
+  console.log('[AutoUpdater] Installing update...')
   autoUpdater.quitAndInstall(false, true)
+})
+
+// IPC handler to manually check for updates
+ipcMain.on('check-for-updates', () => {
+  console.log('[AutoUpdater] Manual update check requested')
+  autoUpdater.checkForUpdates()
+})
+
+// IPC handler to show update window manually
+ipcMain.on('show-update-window', () => {
+  if (updateInfo) {
+    createUpdateWindow()
+  }
 })
 
 // ============================================
