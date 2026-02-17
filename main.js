@@ -67,7 +67,13 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
     if (app.isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify()
+      // Check for updates on startup
+      autoUpdater.checkForUpdates()
+      
+      // Check for updates every hour (Discord-style)
+      setInterval(() => {
+        autoUpdater.checkForUpdates()
+      }, 60 * 60 * 1000) // 1 hour
     }
   })
 
@@ -475,27 +481,25 @@ ipcMain.on('update-later', () => {
 })
 
 // ============================================
-// Auto-updater Configuration
+// Auto-updater Configuration (Discord-style)
 // ============================================
-autoUpdater.autoDownload = false // Don't auto-download, let user initiate
-autoUpdater.autoInstallOnAppQuit = true
+autoUpdater.autoDownload = true // Download automatically in background
+autoUpdater.autoInstallOnAppQuit = true // Install on quit/restart
 
 autoUpdater.on('checking-for-update', () => {
   console.log('[AutoUpdater] Checking for updates...')
 })
 
 autoUpdater.on('update-available', (info) => {
-  console.log('[AutoUpdater] Update available:', info.version)
+  console.log('[AutoUpdater] Update available:', info.version, '- downloading automatically...')
   updateInfo = info
   
-  // Show the styled update window
-  createUpdateWindow()
-  
-  // Also notify the main window (for in-app indicator)
+  // Don't show popup - just notify main window subtly
   if (mainWindow) {
     mainWindow.webContents.send('update-available', { 
       version: info.version, 
-      releaseNotes: info.releaseNotes 
+      releaseNotes: info.releaseNotes,
+      downloading: true
     })
   }
 })
@@ -528,16 +532,33 @@ autoUpdater.on('download-progress', (progress) => {
 })
 
 autoUpdater.on('update-downloaded', (info) => {
-  console.log('[AutoUpdater] Download complete:', info.version)
+  console.log('[AutoUpdater] Download complete:', info.version, '- ready to install on restart')
   
-  // Notify update window
+  // Notify update window if it exists
   if (updateWindow && !updateWindow.isDestroyed()) {
     updateWindow.webContents.send('update-downloaded', { version: info.version })
   }
   
-  // Notify main window
+  // Notify main window - show subtle "restart to update" banner
   if (mainWindow) {
-    mainWindow.webContents.send('update-downloaded', { version: info.version })
+    mainWindow.webContents.send('update-downloaded', { 
+      version: info.version,
+      readyToInstall: true
+    })
+  }
+  
+  // Show system notification
+  const { Notification } = require('electron')
+  if (Notification.isSupported()) {
+    const notification = new Notification({
+      title: 'Aetherium Update Ready',
+      body: `Version ${info.version} has been downloaded. Restart to apply.`,
+      icon: path.join(__dirname, 'icon.png')
+    })
+    notification.on('click', () => {
+      autoUpdater.quitAndInstall(false, true)
+    })
+    notification.show()
   }
 })
 
@@ -731,8 +752,7 @@ ipcMain.on('window-maximize', () => {
 ipcMain.on('window-close', () => { if (mainWindow) mainWindow.close() })
 ipcMain.handle('window-is-maximized', () => mainWindow ? mainWindow.isMaximized() : false)
 
-// Updates
-ipcMain.on('install-update', () => autoUpdater.quitAndInstall(false, true))
+// Updates (check-for-updates handle version)
 ipcMain.handle('check-for-updates', async () => {
   try {
     const result = await autoUpdater.checkForUpdates()
