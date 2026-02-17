@@ -491,11 +491,60 @@ autoUpdater.on('checking-for-update', () => {
 })
 
 autoUpdater.on('update-available', (info) => {
-  console.log('[AutoUpdater] Update available:', info.version, '- downloading automatically...')
+  console.log('[AutoUpdater] Update available:', info.version, '- showing full-screen update overlay')
   updateInfo = info
   
-  // Don't show popup - just notify main window subtly
+  // Show full-screen blocking overlay
   if (mainWindow) {
+    mainWindow.webContents.executeJavaScript(`
+      (function() {
+        // Remove existing overlay if any
+        const existing = document.getElementById('aetherium-update-overlay');
+        if (existing) existing.remove();
+        
+        const overlay = document.createElement('div');
+        overlay.id = 'aetherium-update-overlay';
+        overlay.style.cssText = \`
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+          z-index: 999999;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          color: white;
+          -webkit-app-region: drag;
+        \`;
+        
+        overlay.innerHTML = \`
+          <div style="text-align: center; -webkit-app-region: no-drag;">
+            <div style="width: 80px; height: 80px; margin: 0 auto 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </div>
+            <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 600;">Update Available</h1>
+            <p style="margin: 0 0 32px; color: #a0a0b8; font-size: 16px;">Version ${info.version} is downloading...</p>
+            <div id="update-progress-container" style="width: 300px; margin: 0 auto;">
+              <div style="background: rgba(255,255,255,0.1); border-radius: 8px; height: 8px; overflow: hidden;">
+                <div id="update-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 8px; transition: width 0.3s ease;"></div>
+              </div>
+              <p id="update-progress-text" style="margin: 12px 0 0; color: #8b8ba0; font-size: 13px;">Starting download...</p>
+            </div>
+          </div>
+        \`;
+        
+        document.body.appendChild(overlay);
+      })();
+    `).catch(err => console.error('Failed to inject update overlay:', err));
+    
     mainWindow.webContents.send('update-available', { 
       version: info.version, 
       releaseNotes: info.releaseNotes,
@@ -511,6 +560,29 @@ autoUpdater.on('update-not-available', () => {
 autoUpdater.on('download-progress', (progress) => {
   console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`)
   
+  // Update the full-screen overlay progress
+  if (mainWindow) {
+    const percent = Math.round(progress.percent);
+    const mbTransferred = (progress.transferred / 1024 / 1024).toFixed(1);
+    const mbTotal = (progress.total / 1024 / 1024).toFixed(1);
+    const speed = (progress.bytesPerSecond / 1024 / 1024).toFixed(1);
+    
+    mainWindow.webContents.executeJavaScript(`
+      (function() {
+        const bar = document.getElementById('update-progress-bar');
+        const text = document.getElementById('update-progress-text');
+        if (bar) bar.style.width = '${percent}%';
+        if (text) text.textContent = '${mbTransferred} MB / ${mbTotal} MB (${speed} MB/s)';
+      })();
+    `).catch(() => {});
+    
+    mainWindow.webContents.send('update-progress', { 
+      percent: progress.percent, 
+      transferred: progress.transferred, 
+      total: progress.total 
+    })
+  }
+  
   // Send to update window
   if (updateWindow && !updateWindow.isDestroyed()) {
     updateWindow.webContents.send('download-progress', {
@@ -520,45 +592,61 @@ autoUpdater.on('download-progress', (progress) => {
       bytesPerSecond: progress.bytesPerSecond
     })
   }
-  
-  // Send to main window too
-  if (mainWindow) {
-    mainWindow.webContents.send('update-progress', { 
-      percent: progress.percent, 
-      transferred: progress.transferred, 
-      total: progress.total 
-    })
-  }
 })
 
 autoUpdater.on('update-downloaded', (info) => {
-  console.log('[AutoUpdater] Download complete:', info.version, '- ready to install on restart')
+  console.log('[AutoUpdater] Download complete:', info.version, '- showing restart prompt')
   
-  // Notify update window if it exists
-  if (updateWindow && !updateWindow.isDestroyed()) {
-    updateWindow.webContents.send('update-downloaded', { version: info.version })
-  }
-  
-  // Notify main window - show subtle "restart to update" banner
+  // Update the overlay to show restart button
   if (mainWindow) {
+    mainWindow.webContents.executeJavaScript(`
+      (function() {
+        const overlay = document.getElementById('aetherium-update-overlay');
+        if (overlay) {
+          overlay.innerHTML = \`
+            <div style="text-align: center; -webkit-app-region: no-drag;">
+              <div style="width: 80px; height: 80px; margin: 0 auto 24px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 600;">Update Ready!</h1>
+              <p style="margin: 0 0 32px; color: #a0a0b8; font-size: 16px;">Version ${info.version} is ready to install</p>
+              <button id="restart-update-btn" style="
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                padding: 14px 48px;
+                font-size: 16px;
+                font-weight: 600;
+                border-radius: 12px;
+                cursor: pointer;
+                box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+                transition: transform 0.2s, box-shadow 0.2s;
+              " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.5)';"
+                 onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 16px rgba(102, 126, 234, 0.4)';">
+                Restart Now
+              </button>
+              <p style="margin: 16px 0 0; color: #6b6b80; font-size: 13px;">The app will restart to complete the update</p>
+            </div>
+          \`;
+          
+          document.getElementById('restart-update-btn').addEventListener('click', () => {
+            window.electronAPI?.installUpdate?.();
+          });
+        }
+      })();
+    `).catch(err => console.error('Failed to update overlay:', err));
+    
     mainWindow.webContents.send('update-downloaded', { 
       version: info.version,
       readyToInstall: true
     })
   }
   
-  // Show system notification
-  const { Notification } = require('electron')
-  if (Notification.isSupported()) {
-    const notification = new Notification({
-      title: 'Aetherium Update Ready',
-      body: `Version ${info.version} has been downloaded. Restart to apply.`,
-      icon: path.join(__dirname, 'icon.png')
-    })
-    notification.on('click', () => {
-      autoUpdater.quitAndInstall(false, true)
-    })
-    notification.show()
+  // Notify update window if it exists
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.webContents.send('update-downloaded', { version: info.version })
   }
 })
 
