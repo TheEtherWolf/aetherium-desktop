@@ -98,6 +98,117 @@ function createWindow() {
 
   mainWindow.loadURL(AETHERIUM_URL)
 
+  // Handle connection failures with a nice error screen
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    debugLog('Page load failed:', errorCode, errorDescription, validatedURL)
+    
+    // Show friendly error screen with window controls
+    mainWindow.webContents.executeJavaScript(`
+      document.body.style.margin = '0';
+      document.body.style.padding = '0';
+      document.body.style.overflow = 'hidden';
+      document.body.innerHTML = \`
+        <div style="
+          display: flex;
+          flex-direction: column;
+          height: 100vh;
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          color: white;
+        ">
+          <!-- Title bar -->
+          <div style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 32px;
+            padding: 0 8px;
+            -webkit-app-region: drag;
+            background: rgba(0,0,0,0.2);
+          ">
+            <span style="font-size: 12px; color: #8b8ba0; margin-left: 8px;">Aetherium</span>
+            <div style="display: flex; -webkit-app-region: no-drag;">
+              <button id="minimize-btn" style="
+                width: 46px; height: 32px; border: none; background: transparent;
+                color: #a0a0b8; cursor: pointer; font-size: 16px;
+              " onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">─</button>
+              <button id="close-btn" style="
+                width: 46px; height: 32px; border: none; background: transparent;
+                color: #a0a0b8; cursor: pointer; font-size: 16px;
+              " onmouseover="this.style.background='#e81123'; this.style.color='white'" onmouseout="this.style.background='transparent'; this.style.color='#a0a0b8'">✕</button>
+            </div>
+          </div>
+          <!-- Content -->
+          <div style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+            -webkit-app-region: drag;
+          ">
+            <div style="-webkit-app-region: no-drag;">
+              <div style="
+                width: 100px;
+                height: 100px;
+                margin: 0 auto 24px;
+                background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                border-radius: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 8px 32px rgba(239, 68, 68, 0.3);
+              ">
+                <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+              </div>
+              <h1 style="margin: 0 0 12px; font-size: 28px; font-weight: 600;">Connection Failed</h1>
+              <p style="margin: 0 0 8px; color: #a0a0b8; font-size: 16px; max-width: 400px;">
+                Unable to connect to Aetherium servers.
+              </p>
+              <p style="margin: 0 0 32px; color: #6b6b80; font-size: 14px;">
+                Check your internet connection or firewall settings.
+              </p>
+              <button id="retry-btn" style="
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                color: white;
+                padding: 14px 48px;
+                font-size: 16px;
+                font-weight: 600;
+                border-radius: 12px;
+                cursor: pointer;
+                box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+                transition: transform 0.2s, box-shadow 0.2s;
+                margin-bottom: 16px;
+              " onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.5)';"
+                 onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 16px rgba(102, 126, 234, 0.4)';">
+                Retry Connection
+              </button>
+              <p style="margin: 0; color: #4a4a5c; font-size: 12px;">
+                Error: ${errorDescription} (${errorCode})
+              </p>
+            </div>
+          </div>
+        </div>
+      \`;
+      document.getElementById('retry-btn').addEventListener('click', () => location.reload());
+      document.getElementById('minimize-btn').addEventListener('click', () => window.electronAPI?.windowControls?.minimize());
+      document.getElementById('close-btn').addEventListener('click', () => window.electronAPI?.windowControls?.close());
+    `).catch(err => debugLog('Failed to show error screen:', err));
+  })
+
+  // Log successful load
+  mainWindow.webContents.on('did-finish-load', () => {
+    debugLog('Page loaded successfully')
+  })
+
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
     if (app.isPackaged) {
@@ -899,4 +1010,13 @@ ipcMain.handle('clear-cache-and-reload', async () => {
     }
   }
   return { success: false, error: 'No window' }
+})
+
+// Retry connection (reload the app URL)
+ipcMain.handle('retry-connection', () => {
+  if (mainWindow) {
+    mainWindow.loadURL(AETHERIUM_URL)
+    return true
+  }
+  return false
 })
