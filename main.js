@@ -474,6 +474,13 @@ function hideActiveCallOverlay() {
   activeCallData = null
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.webContents.send('hide-active-call')
+    // Hide the overlay window after a short delay for animation
+    setTimeout(() => {
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.hide()
+        overlayWindow.setIgnoreMouseEvents(true, { forward: true })
+      }
+    }, 300)
   }
 }
 
