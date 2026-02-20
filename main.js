@@ -22,6 +22,14 @@ let overlayEnabled = true // Can be toggled from settings
 let updateWindow = null
 let updateInfo = null // Store update info for the update window
 
+// Handle certificate errors (for debugging)
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+  debugLog('Certificate error:', url, error)
+  // In production, we should NOT ignore certificate errors
+  // But log them for debugging
+  callback(false) // Reject invalid certificates
+})
+
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock()
 
@@ -53,7 +61,9 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      webSecurity: true,
+      allowRunningInsecureContent: false
     },
     frame: false,
     titleBarStyle: 'hidden',
@@ -61,7 +71,31 @@ function createWindow() {
     backgroundColor: '#1a1a2e'
   })
 
+  // Log network errors for debugging
+  mainWindow.webContents.session.webRequest.onErrorOccurred((details) => {
+    if (details.error !== 'net::ERR_ABORTED') {
+      debugLog('Network error:', details.url, details.error)
+    }
+  })
+
   Menu.setApplicationMenu(null)
+
+  // Handle permission requests (media, notifications, etc.)
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowedPermissions = ['media', 'mediaKeySystem', 'notifications', 'fullscreen', 'pointerLock', 'clipboard-read', 'clipboard-write']
+    if (allowedPermissions.includes(permission)) {
+      callback(true)
+    } else {
+      callback(false)
+    }
+  })
+
+  // Handle permission check requests
+  mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
+    const allowedPermissions = ['media', 'mediaKeySystem', 'notifications', 'fullscreen', 'pointerLock', 'clipboard-read', 'clipboard-write']
+    return allowedPermissions.includes(permission)
+  })
+
   mainWindow.loadURL(AETHERIUM_URL)
 
   mainWindow.once('ready-to-show', () => {
