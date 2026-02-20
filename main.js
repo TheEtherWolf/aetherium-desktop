@@ -335,14 +335,20 @@ function createOverlayWindow() {
     return overlayWindow
   }
 
-  const display = screen.getPrimaryDisplay()
+  // Get the display that the main window is on (not just primary)
+  let display = screen.getPrimaryDisplay()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const mainBounds = mainWindow.getBounds()
+    display = screen.getDisplayMatching(mainBounds)
+  }
   const { width: screenW, height: screenH } = display.workAreaSize
+  const { x: displayX } = display.bounds
 
   overlayWindow = new BrowserWindow({
     width: 400,
     height: screenH,
-    x: screenW - 400,
-    y: 0,
+    x: displayX + screenW - 400,
+    y: display.bounds.y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
