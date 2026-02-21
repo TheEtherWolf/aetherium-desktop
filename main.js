@@ -347,7 +347,7 @@ function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
     width: 400,
     height: screenH,
-    x: displayX + screenW - 400,
+    x: displayX, // Top-left of primary display
     y: display.bounds.y,
     frame: false,
     transparent: true,
@@ -357,6 +357,7 @@ function createOverlayWindow() {
     focusable: false,
     hasShadow: false,
     show: false,
+    level: 'screen-saver', // Higher z-index to appear above main window
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
