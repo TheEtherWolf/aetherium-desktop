@@ -645,6 +645,13 @@ ipcMain.on('update-later', () => {
 autoUpdater.autoDownload = true // Download automatically in background
 autoUpdater.autoInstallOnAppQuit = true // Install on quit/restart
 
+// Check for updates periodically (every 2 hours)
+const UPDATE_CHECK_INTERVAL = 2 * 60 * 60 * 1000 // 2 hours in milliseconds
+setInterval(() => {
+  console.log('[AutoUpdater] Periodic update check...')
+  autoUpdater.checkForUpdates()
+}, UPDATE_CHECK_INTERVAL)
+
 autoUpdater.on('checking-for-update', () => {
   console.log('[AutoUpdater] Checking for updates...')
 })
@@ -902,7 +909,24 @@ ipcMain.handle('get-source-stream', async (event, sourceId, constraints) => ({ s
 // IPC handler for manual update install (from update window or main window)
 ipcMain.on('install-update', () => {
   console.log('[AutoUpdater] Installing update...')
+  debugLog('[AutoUpdater] User clicked install-update, calling quitAndInstall')
+  
+  // Close all windows first
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.close()
+  }
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close()
+  }
+  
+  // Quit and install: isSilent = false (show installer), forceRunAfter = true (run app after)
   autoUpdater.quitAndInstall(false, true)
+  
+  // Force quit if quitAndInstall doesn't work
+  setTimeout(() => {
+    debugLog('[AutoUpdater] Force quitting app...')
+    app.quit()
+  }, 1000)
 })
 
 // IPC handler to manually check for updates
