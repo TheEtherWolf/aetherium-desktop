@@ -645,8 +645,8 @@ ipcMain.on('update-later', () => {
 autoUpdater.autoDownload = true // Download automatically in background
 autoUpdater.autoInstallOnAppQuit = true // Install on quit/restart
 
-// Check for updates periodically (every 2 hours)
-const UPDATE_CHECK_INTERVAL = 2 * 60 * 60 * 1000 // 2 hours in milliseconds
+// Check for updates periodically (every 30 minutes)
+const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000 // 30 minutes in milliseconds
 setInterval(() => {
   console.log('[AutoUpdater] Periodic update check...')
   autoUpdater.checkForUpdates()
