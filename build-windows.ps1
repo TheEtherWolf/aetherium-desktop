@@ -29,7 +29,7 @@ if (Test-Path "dist\Aetherium-Setup.exe") {
     Invoke-Item "dist"
     
     Write-Host "`nNext steps:" -ForegroundColor Magenta
-    Write-Host "1. Create GitHub release: gh release create v1.2.12" -ForegroundColor White
+    Write-Host "1. Create GitHub release: gh release create v1.2.13" -ForegroundColor White
     Write-Host "2. Upload Aetherium-Setup.exe to the release" -ForegroundColor White
     Write-Host "3. Upload latest.yml to the release" -ForegroundColor White
     Write-Host "`nSee RELEASE_GUIDE.md for detailed instructions" -ForegroundColor Cyan
