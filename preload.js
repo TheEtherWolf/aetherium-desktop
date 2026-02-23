@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Show overlay notification (gaming style, appears when app is minimized/hidden)
   showOverlayNotification: (data) => ipcRenderer.invoke('show-overlay-notification', data),
+  dismissOverlay: () => ipcRenderer.invoke('dismiss-overlay'),
 
   // Toggle overlay on/off
   setOverlayEnabled: (enabled) => ipcRenderer.invoke('set-overlay-enabled', enabled),

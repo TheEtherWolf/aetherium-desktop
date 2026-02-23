@@ -430,6 +430,7 @@ ipcMain.on('overlay-clicked', (event, data) => {
 })
 
 ipcMain.on('overlay-answer-call', () => {
+  dismissOverlay() // Hide overlay when answering
   if (mainWindow) {
     mainWindow.show()
     mainWindow.focus()
@@ -439,6 +440,7 @@ ipcMain.on('overlay-answer-call', () => {
 })
 
 ipcMain.on('overlay-decline-call', () => {
+  dismissOverlay() // Hide overlay when declining
   if (mainWindow) {
     mainWindow.webContents.send('overlay-action', { action: 'decline-call' })
   }
@@ -446,6 +448,12 @@ ipcMain.on('overlay-decline-call', () => {
 
 ipcMain.on('overlay-dismiss', () => {
   dismissOverlay()
+})
+
+// Allow renderer to dismiss overlay (e.g., when answering call from web app)
+ipcMain.handle('dismiss-overlay', () => {
+  dismissOverlay()
+  return true
 })
 
 // ============================================
