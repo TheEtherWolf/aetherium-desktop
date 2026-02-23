@@ -341,15 +341,16 @@ function createOverlayWindow() {
     const mainBounds = mainWindow.getBounds()
     display = screen.getDisplayMatching(mainBounds)
   }
-  // Use workArea for proper positioning (accounts for taskbar) on the correct monitor
-  const { x: workX, y: workY, width: workW, height: workH } = display.workArea
-  console.log('[Overlay] Creating on display:', display.id, 'at', workX, workY, 'size', workW, workH)
+  // Use bounds for absolute top-left position, workArea for height (excludes taskbar)
+  const { x: displayX, y: displayY } = display.bounds
+  const { height: workH } = display.workArea
+  console.log('[Overlay] Creating on display:', display.id, 'at top-left', displayX, displayY, 'height', workH)
 
   overlayWindow = new BrowserWindow({
     width: 400,
     height: workH,
-    x: workX, // Top-left of work area on CURRENT display (not primary)
-    y: workY,
+    x: displayX, // Absolute top-left of display
+    y: displayY,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -405,9 +406,11 @@ function showOverlay(data) {
     const mainBounds = mainWindow.getBounds()
     display = screen.getDisplayMatching(mainBounds)
   }
-  const { x: workX, y: workY, height: workH } = display.workArea
-  overlay.setBounds({ x: workX, y: workY, width: 400, height: workH })
-  console.log('[Overlay] Repositioned for notification to display:', display.id, 'at', workX, workY)
+  // Use bounds for position (absolute top-left), workArea height (excludes taskbar)
+  const { x: displayX, y: displayY } = display.bounds
+  const { height: workH } = display.workArea
+  overlay.setBounds({ x: displayX, y: displayY, width: 400, height: workH })
+  console.log('[Overlay] Repositioned for notification to display:', display.id, 'at top-left', displayX, displayY)
   
   if (!overlay.isVisible()) {
     overlay.showInactive()
@@ -486,9 +489,11 @@ function showActiveCallOverlay(data) {
     const mainBounds = mainWindow.getBounds()
     display = screen.getDisplayMatching(mainBounds)
   }
-  const { x: workX, y: workY, height: workH } = display.workArea
-  overlay.setBounds({ x: workX, y: workY, width: 400, height: workH })
-  console.log('[Overlay] Repositioned to display:', display.id, 'at', workX, workY)
+  // Use bounds for position (absolute top-left), workArea height (excludes taskbar)
+  const { x: displayX, y: displayY } = display.bounds
+  const { height: workH } = display.workArea
+  overlay.setBounds({ x: displayX, y: displayY, width: 400, height: workH })
+  console.log('[Overlay] Repositioned to display:', display.id, 'at top-left', displayX, displayY)
   
   if (!overlay.isVisible()) {
     overlay.showInactive()
