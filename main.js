@@ -399,6 +399,16 @@ function showOverlay(data) {
 
   const overlay = createOverlayWindow()
   
+  // Update position to match current display (in case main window moved)
+  let display = screen.getPrimaryDisplay()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const mainBounds = mainWindow.getBounds()
+    display = screen.getDisplayMatching(mainBounds)
+  }
+  const { x: workX, y: workY, height: workH } = display.workArea
+  overlay.setBounds({ x: workX, y: workY, width: 400, height: workH })
+  console.log('[Overlay] Repositioned for notification to display:', display.id, 'at', workX, workY)
+  
   if (!overlay.isVisible()) {
     overlay.showInactive()
   }
@@ -410,10 +420,13 @@ function showOverlay(data) {
 }
 
 function dismissOverlay() {
+  console.log('[Overlay] dismissOverlay called')
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.hide()
-    // Re-enable click-through when no notifications
     overlayWindow.setIgnoreMouseEvents(true, { forward: true })
+    console.log('[Overlay] Dismissed and hidden')
+  } else {
+    console.log('[Overlay] No overlay to dismiss')
   }
 }
 
@@ -467,6 +480,16 @@ function showActiveCallOverlay(data) {
   activeCallData = data
   const overlay = createOverlayWindow()
   
+  // Update position to match current display (in case main window moved)
+  let display = screen.getPrimaryDisplay()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const mainBounds = mainWindow.getBounds()
+    display = screen.getDisplayMatching(mainBounds)
+  }
+  const { x: workX, y: workY, height: workH } = display.workArea
+  overlay.setBounds({ x: workX, y: workY, width: 400, height: workH })
+  console.log('[Overlay] Repositioned to display:', display.id, 'at', workX, workY)
+  
   if (!overlay.isVisible()) {
     overlay.showInactive()
   }
@@ -481,16 +504,17 @@ function updateActiveCallOverlay(data) {
 }
 
 function hideActiveCallOverlay() {
+  console.log('[Overlay] hideActiveCallOverlay called, activeCallData was:', activeCallData ? 'set' : 'null')
   activeCallData = null
   if (overlayWindow && !overlayWindow.isDestroyed()) {
+    console.log('[Overlay] Sending hide-active-call to overlay window')
     overlayWindow.webContents.send('hide-active-call')
-    // Hide the overlay window after a short delay for animation
-    setTimeout(() => {
-      if (overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.hide()
-        overlayWindow.setIgnoreMouseEvents(true, { forward: true })
-      }
-    }, 300)
+    // Hide the overlay window immediately (no delay - was causing persistence issues)
+    overlayWindow.hide()
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true })
+    console.log('[Overlay] Window hidden')
+  } else {
+    console.log('[Overlay] No overlay window to hide')
   }
 }
 
