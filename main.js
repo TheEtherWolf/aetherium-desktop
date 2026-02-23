@@ -341,14 +341,15 @@ function createOverlayWindow() {
     const mainBounds = mainWindow.getBounds()
     display = screen.getDisplayMatching(mainBounds)
   }
-  const { width: screenW, height: screenH } = display.workAreaSize
-  const { x: displayX } = display.bounds
+  // Use workArea for proper positioning (accounts for taskbar) on the correct monitor
+  const { x: workX, y: workY, width: workW, height: workH } = display.workArea
+  console.log('[Overlay] Creating on display:', display.id, 'at', workX, workY, 'size', workW, workH)
 
   overlayWindow = new BrowserWindow({
     width: 400,
-    height: screenH,
-    x: displayX, // Top-left of primary display
-    y: display.bounds.y,
+    height: workH,
+    x: workX, // Top-left of work area on CURRENT display (not primary)
+    y: workY,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -586,14 +587,20 @@ function createUpdateWindow() {
     return
   }
 
-  const display = screen.getPrimaryDisplay()
-  const { width: screenW, height: screenH } = display.workAreaSize
+  // Get the display that the main window is on (for multi-monitor support)
+  let display = screen.getPrimaryDisplay()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const mainBounds = mainWindow.getBounds()
+    display = screen.getDisplayMatching(mainBounds)
+  }
+  const { x: workX, y: workY, width: workW, height: workH } = display.workArea
+  console.log('[UpdateWindow] Creating on display:', display.id, 'centered at', workX, workY)
 
   updateWindow = new BrowserWindow({
     width: 450,
     height: 480,
-    x: Math.round((screenW - 450) / 2),
-    y: Math.round((screenH - 480) / 2),
+    x: workX + Math.round((workW - 450) / 2),
+    y: workY + Math.round((workH - 480) / 2),
     parent: mainWindow,
     modal: false,
     frame: false,
