@@ -926,22 +926,40 @@ ipcMain.on('install-update', () => {
   console.log('[AutoUpdater] Installing update...')
   debugLog('[AutoUpdater] User clicked install-update, calling quitAndInstall')
   
-  // Close all windows first
-  if (updateWindow && !updateWindow.isDestroyed()) {
-    updateWindow.close()
-  }
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.close()
+  // Aggressively close everything to prevent "fail to uninstall" errors
+  
+  // 1. Destroy the tray (prevents app from staying alive)
+  if (tray && !tray.isDestroyed()) {
+    tray.destroy()
+    tray = null
   }
   
-  // Quit and install: isSilent = false (show installer), forceRunAfter = true (run app after)
-  autoUpdater.quitAndInstall(false, true)
+  // 2. Destroy ALL windows (not just close - force destroy)
+  const allWindows = BrowserWindow.getAllWindows()
+  allWindows.forEach(win => {
+    if (!win.isDestroyed()) {
+      win.destroy()
+    }
+  })
   
-  // Force quit if quitAndInstall doesn't work
+  // 3. Clear window references
+  mainWindow = null
+  updateWindow = null
+  overlayWindow = null
+  
+  // 4. Small delay to let windows fully close
   setTimeout(() => {
-    debugLog('[AutoUpdater] Force quitting app...')
-    app.quit()
-  }, 1000)
+    debugLog('[AutoUpdater] Windows destroyed, calling quitAndInstall')
+    
+    // Quit and install: isSilent = false (show installer), forceRunAfter = true (run app after)
+    autoUpdater.quitAndInstall(false, true)
+    
+    // 5. Force exit if quitAndInstall doesn't work (app.exit is more forceful than app.quit)
+    setTimeout(() => {
+      debugLog('[AutoUpdater] Force exiting app with app.exit(0)...')
+      app.exit(0)
+    }, 500)
+  }, 100)
 })
 
 // IPC handler to manually check for updates
