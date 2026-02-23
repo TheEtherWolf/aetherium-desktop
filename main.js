@@ -813,7 +813,7 @@ autoUpdater.on('update-downloaded', (info) => {
           \`;
           
           document.getElementById('restart-update-btn').addEventListener('click', () => {
-            window.electronAPI?.installUpdate?.();
+            window.electronAPI?.autoUpdater?.installUpdate?.();
           });
         }
       })();
