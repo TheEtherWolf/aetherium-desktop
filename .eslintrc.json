@@ -1,0 +1,41 @@
+{
+  "root": true,
+  "env": {
+    "node": true,
+    "es2020": true
+  },
+  "extends": ["eslint:recommended", "plugin:node/recommended"],
+  "plugins": ["node"],
+  "parserOptions": {
+    "ecmaVersion": 2020
+  },
+  "rules": {
+    "no-console": "off",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "node/no-missing-require": "error",
+    "node/no-unpublished-require": ["error", { "allowModules": ["electron"] }],
+    "node/no-unsupported-features/es-syntax": ["error", { "version": ">=18.0.0" }]
+  },
+  "overrides": [
+    {
+      "files": ["src/preloads/*.js"],
+      "env": {
+        "browser": true,
+        "node": false
+      },
+      "rules": {
+        "node/no-missing-require": "off",
+        "node/no-unpublished-require": "off",
+        "node/no-unsupported-features/es-syntax": "off"
+      }
+    },
+    {
+      "files": ["preload.js"],
+      "env": {
+        "browser": true,
+        "node": true
+      }
+    }
+  ],
+  "ignorePatterns": ["dist/", "node_modules/"]
+}

@@ -5,12 +5,18 @@
   "main": "main.js",
   "author": "Aetherium",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
-    "build:linux": "electron-builder --linux"
+    "build:linux": "electron-builder --linux",
+    "lint": "eslint src/*.js main.js preload.js",
+    "lint:fix": "eslint src/*.js main.js preload.js --fix",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "electron-updater": "^6.1.7"
@@ -18,7 +24,10 @@
   "devDependencies": {
     "electron": "^28.1.0",
     "electron-builder": "^24.9.1",
-    "png-to-ico": "^3.0.1"
+    "eslint": "^8.57.1",
+    "eslint-plugin-node": "^11.1.0",
+    "png-to-ico": "^3.0.1",
+    "prettier": "^3.8.1"
   },
   "build": {
     "appId": "com.aetherium.chat",
@@ -32,7 +41,8 @@
       "overlay.html",
       "screen-picker.html",
       "update-window.html",
-      "resources/**/*"
+      "resources/**/*",
+      "src/**/*"
     ],
     "win": {
       "target": [

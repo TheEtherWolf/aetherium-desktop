@@ -1,582 +1,618 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aetherium Update</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      color: #f8f8f8;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      -webkit-app-region: drag;
-    }
-
-    .update-container {
-      width: 420px;
-      background: rgba(30, 30, 46, 0.95);
-      border-radius: 16px;
-      border: 1px solid rgba(139, 92, 246, 0.2);
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(139, 92, 246, 0.1);
-      overflow: hidden;
-      -webkit-app-region: no-drag;
-    }
-
-    /* Header */
-    .update-header {
-      padding: 24px 24px 20px;
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.1));
-      border-bottom: 1px solid rgba(139, 92, 246, 0.15);
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .update-icon {
-      width: 48px;
-      height: 48px;
-      background: linear-gradient(135deg, #7c3aed, #3b82f6);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
-    }
-
-    .update-icon svg {
-      width: 28px;
-      height: 28px;
-      color: white;
-    }
-
-    .update-title-section h1 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-
-    .update-title-section p {
-      font-size: 13px;
-      color: rgba(248, 248, 248, 0.6);
-    }
-
-    /* Body */
-    .update-body {
-      padding: 24px;
-    }
-
-    /* Version Info */
-    .version-info {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      margin-bottom: 24px;
-      padding: 16px;
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 10px;
-    }
-
-    .version-box {
-      text-align: center;
-    }
-
-    .version-label {
-      font-size: 11px;
-      color: rgba(248, 248, 248, 0.5);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-    }
-
-    .version-number {
-      font-size: 18px;
-      font-weight: 600;
-      font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
-    }
-
-    .version-number.current {
-      color: rgba(248, 248, 248, 0.6);
-    }
-
-    .version-number.new {
-      color: #22c55e;
-    }
-
-    .version-arrow {
-      color: rgba(248, 248, 248, 0.3);
-    }
-
-    /* Progress Section */
-    .progress-section {
-      margin-bottom: 24px;
-    }
-
-    .progress-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .progress-status {
-      font-size: 13px;
-      color: rgba(248, 248, 248, 0.8);
-    }
-
-    .progress-percent {
-      font-size: 13px;
-      font-weight: 600;
-      color: #7c3aed;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .progress-bar-container {
-      height: 8px;
-      background: rgba(124, 58, 237, 0.15);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
-    .progress-bar {
-      height: 100%;
-      background: linear-gradient(90deg, #7c3aed, #3b82f6);
-      border-radius: 4px;
-      transition: width 0.3s ease;
-      width: 0%;
-    }
-
-    .progress-bar.indeterminate {
-      width: 30%;
-      animation: indeterminate 1.5s ease-in-out infinite;
-    }
-
-    @keyframes indeterminate {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(400%); }
-    }
-
-    .progress-details {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 8px;
-      font-size: 11px;
-      color: rgba(248, 248, 248, 0.4);
-    }
-
-    /* Status Messages */
-    .status-message {
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .status-message.info {
-      background: rgba(59, 130, 246, 0.15);
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      color: #60a5fa;
-    }
-
-    .status-message.success {
-      background: rgba(34, 197, 94, 0.15);
-      border: 1px solid rgba(34, 197, 94, 0.3);
-      color: #4ade80;
-    }
-
-    .status-message.error {
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: #f87171;
-    }
-
-    .status-message.warning {
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      color: #fbbf24;
-    }
-
-    .status-message svg {
-      flex-shrink: 0;
-    }
-
-    /* Buttons */
-    .button-row {
-      display: flex;
-      gap: 12px;
-    }
-
-    .btn {
-      flex: 1;
-      padding: 12px 20px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      border: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, #7c3aed, #6366f1);
-      color: white;
-      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
-    }
-
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.08);
-      color: rgba(248, 248, 248, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .btn-secondary:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.12);
-      color: white;
-    }
-
-    /* Release Notes */
-    .release-notes {
-      margin-bottom: 20px;
-    }
-
-    .release-notes-header {
-      font-size: 12px;
-      font-weight: 600;
-      color: rgba(248, 248, 248, 0.6);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 8px;
-    }
-
-    .release-notes-content {
-      max-height: 120px;
-      overflow-y: auto;
-      padding: 12px;
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 8px;
-      font-size: 13px;
-      line-height: 1.5;
-      color: rgba(248, 248, 248, 0.7);
-    }
-
-    .release-notes-content::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    .release-notes-content::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .release-notes-content::-webkit-scrollbar-thumb {
-      background: rgba(139, 92, 246, 0.3);
-      border-radius: 3px;
-    }
-
-    /* Close button */
-    .close-btn {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.05);
-      border: none;
-      color: rgba(248, 248, 248, 0.5);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-      -webkit-app-region: no-drag;
-    }
-
-    .close-btn:hover {
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
-    }
-
-    /* Hidden states */
-    .hidden {
-      display: none !important;
-    }
-
-    /* Spinner */
-    .spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-  </style>
-</head>
-<body>
-  <div class="update-container">
-    <button class="close-btn" id="closeBtn" title="Close">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    </button>
-
-    <div class="update-header">
-      <div class="update-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-      </div>
-      <div class="update-title-section">
-        <h1>Update Available</h1>
-        <p>A new version of Aetherium is ready</p>
-      </div>
-    </div>
-
-    <div class="update-body">
-      <!-- Version Info -->
-      <div class="version-info">
-        <div class="version-box">
-          <div class="version-label">Current</div>
-          <div class="version-number current" id="currentVersion">v1.2.2</div>
-        </div>
-        <svg class="version-arrow" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-        <div class="version-box">
-          <div class="version-label">New</div>
-          <div class="version-number new" id="newVersion">v1.3.0</div>
-        </div>
-      </div>
-
-      <!-- Status Message -->
-      <div class="status-message info" id="statusMessage">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="16" x2="12" y2="12"/>
-          <line x1="12" y1="8" x2="12.01" y2="8"/>
-        </svg>
-        <span id="statusText">Ready to download update</span>
-      </div>
-
-      <!-- Progress Section -->
-      <div class="progress-section hidden" id="progressSection">
-        <div class="progress-header">
-          <span class="progress-status" id="progressStatus">Downloading...</span>
-          <span class="progress-percent" id="progressPercent">0%</span>
-        </div>
-        <div class="progress-bar-container">
-          <div class="progress-bar" id="progressBar"></div>
-        </div>
-        <div class="progress-details">
-          <span id="downloadedSize">0 MB</span>
-          <span id="downloadSpeed">-- MB/s</span>
-          <span id="totalSize">0 MB</span>
-        </div>
-      </div>
-
-      <!-- Release Notes (optional) -->
-      <div class="release-notes hidden" id="releaseNotes">
-        <div class="release-notes-header">What's New</div>
-        <div class="release-notes-content" id="releaseNotesContent"></div>
-      </div>
-
-      <!-- Buttons -->
-      <div class="button-row" id="buttonRow">
-        <button class="btn btn-secondary" id="laterBtn">Later</button>
-        <button class="btn btn-primary" id="actionBtn">
-          <span id="actionBtnText">Download & Install</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const { ipcRenderer } = require('electron');
-
-    // Elements
-    const currentVersionEl = document.getElementById('currentVersion');
-    const newVersionEl = document.getElementById('newVersion');
-    const statusMessage = document.getElementById('statusMessage');
-    const statusText = document.getElementById('statusText');
-    const progressSection = document.getElementById('progressSection');
-    const progressBar = document.getElementById('progressBar');
-    const progressPercent = document.getElementById('progressPercent');
-    const progressStatus = document.getElementById('progressStatus');
-    const downloadedSize = document.getElementById('downloadedSize');
-    const downloadSpeed = document.getElementById('downloadSpeed');
-    const totalSize = document.getElementById('totalSize');
-    const releaseNotes = document.getElementById('releaseNotes');
-    const releaseNotesContent = document.getElementById('releaseNotesContent');
-    const actionBtn = document.getElementById('actionBtn');
-    const actionBtnText = document.getElementById('actionBtnText');
-    const laterBtn = document.getElementById('laterBtn');
-    const closeBtn = document.getElementById('closeBtn');
-
-    let updateState = 'ready'; // ready, downloading, downloaded, error
-
-    // Format bytes to MB
-    function formatBytes(bytes) {
-      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    }
-
-    // Set status message
-    function setStatus(type, text) {
-      statusMessage.className = `status-message ${type}`;
-      statusText.textContent = text;
-      
-      // Update icon based on type
-      const iconSvg = statusMessage.querySelector('svg');
-      if (type === 'success') {
-        iconSvg.innerHTML = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>';
-      } else if (type === 'error') {
-        iconSvg.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
-      } else if (type === 'warning') {
-        iconSvg.innerHTML = '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>';
-      } else {
-        iconSvg.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>';
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aetherium Update</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-    }
 
-    // Receive update info
-    ipcRenderer.on('update-info', (event, data) => {
-      currentVersionEl.textContent = 'v' + data.currentVersion;
-      newVersionEl.textContent = 'v' + data.newVersion;
-      
-      if (data.releaseNotes) {
-        releaseNotesContent.textContent = data.releaseNotes;
-        releaseNotes.classList.remove('hidden');
+      body {
+        font-family:
+          'Segoe UI',
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: #f8f8f8;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        -webkit-app-region: drag;
       }
-    });
 
-    // Download progress
-    ipcRenderer.on('download-progress', (event, data) => {
-      updateState = 'downloading';
-      progressSection.classList.remove('hidden');
-      actionBtn.disabled = true;
-      laterBtn.disabled = true;
-      actionBtnText.textContent = 'Downloading...';
-      
-      const percent = Math.round(data.percent);
-      progressBar.style.width = percent + '%';
-      progressBar.classList.remove('indeterminate');
-      progressPercent.textContent = percent + '%';
-      progressStatus.textContent = 'Downloading update...';
-      
-      if (data.transferred && data.total) {
-        downloadedSize.textContent = formatBytes(data.transferred);
-        totalSize.textContent = formatBytes(data.total);
+      .update-container {
+        width: 420px;
+        background: rgba(30, 30, 46, 0.95);
+        border-radius: 16px;
+        border: 1px solid rgba(139, 92, 246, 0.2);
+        box-shadow:
+          0 20px 60px rgba(0, 0, 0, 0.5),
+          0 0 40px rgba(139, 92, 246, 0.1);
+        overflow: hidden;
+        -webkit-app-region: no-drag;
       }
-      
-      if (data.bytesPerSecond) {
-        downloadSpeed.textContent = formatBytes(data.bytesPerSecond) + '/s';
+
+      /* Header */
+      .update-header {
+        padding: 24px 24px 20px;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.1));
+        border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 16px;
       }
-      
-      setStatus('info', `Downloading update: ${percent}%`);
-    });
 
-    // Download complete
-    ipcRenderer.on('update-downloaded', (event, data) => {
-      updateState = 'downloaded';
-      progressSection.classList.add('hidden');
-      actionBtn.disabled = false;
-      laterBtn.disabled = false;
-      actionBtnText.textContent = 'Install & Restart';
-      
-      setStatus('success', 'Update downloaded and ready to install!');
-    });
+      .update-icon {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #7c3aed, #3b82f6);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+      }
 
-    // Error
-    ipcRenderer.on('update-error', (event, data) => {
-      updateState = 'error';
-      progressSection.classList.add('hidden');
-      actionBtn.disabled = false;
-      laterBtn.disabled = false;
-      actionBtnText.textContent = 'Retry Download';
-      
-      let errorMsg = 'Download failed';
-      if (data.message) {
-        if (data.message.includes('net::')) {
-          errorMsg = 'Network error. Check your connection.';
-        } else if (data.message.includes('ENOSPC')) {
-          errorMsg = 'Not enough disk space.';
-        } else {
-          errorMsg = data.message;
+      .update-icon svg {
+        width: 28px;
+        height: 28px;
+        color: white;
+      }
+
+      .update-title-section h1 {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .update-title-section p {
+        font-size: 13px;
+        color: rgba(248, 248, 248, 0.6);
+      }
+
+      /* Body */
+      .update-body {
+        padding: 24px;
+      }
+
+      /* Version Info */
+      .version-info {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin-bottom: 24px;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 10px;
+      }
+
+      .version-box {
+        text-align: center;
+      }
+
+      .version-label {
+        font-size: 11px;
+        color: rgba(248, 248, 248, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+      }
+
+      .version-number {
+        font-size: 18px;
+        font-weight: 600;
+        font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+      }
+
+      .version-number.current {
+        color: rgba(248, 248, 248, 0.6);
+      }
+
+      .version-number.new {
+        color: #22c55e;
+      }
+
+      .version-arrow {
+        color: rgba(248, 248, 248, 0.3);
+      }
+
+      /* Progress Section */
+      .progress-section {
+        margin-bottom: 24px;
+      }
+
+      .progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+
+      .progress-status {
+        font-size: 13px;
+        color: rgba(248, 248, 248, 0.8);
+      }
+
+      .progress-percent {
+        font-size: 13px;
+        font-weight: 600;
+        color: #7c3aed;
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      .progress-bar-container {
+        height: 8px;
+        background: rgba(124, 58, 237, 0.15);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #7c3aed, #3b82f6);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+        width: 0%;
+      }
+
+      .progress-bar.indeterminate {
+        width: 30%;
+        animation: indeterminate 1.5s ease-in-out infinite;
+      }
+
+      @keyframes indeterminate {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(400%);
         }
       }
-      
-      setStatus('error', errorMsg);
-    });
 
-    // Action button click
-    actionBtn.addEventListener('click', () => {
-      if (updateState === 'ready' || updateState === 'error') {
-        // Start download
+      .progress-details {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 8px;
+        font-size: 11px;
+        color: rgba(248, 248, 248, 0.4);
+      }
+
+      /* Status Messages */
+      .status-message {
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .status-message.info {
+        background: rgba(59, 130, 246, 0.15);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        color: #60a5fa;
+      }
+
+      .status-message.success {
+        background: rgba(34, 197, 94, 0.15);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+        color: #4ade80;
+      }
+
+      .status-message.error {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: #f87171;
+      }
+
+      .status-message.warning {
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        color: #fbbf24;
+      }
+
+      .status-message svg {
+        flex-shrink: 0;
+      }
+
+      /* Buttons */
+      .button-row {
+        display: flex;
+        gap: 12px;
+      }
+
+      .btn {
+        flex: 1;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #7c3aed, #6366f1);
+        color: white;
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+      }
+
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(248, 248, 248, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.12);
+        color: white;
+      }
+
+      /* Release Notes */
+      .release-notes {
+        margin-bottom: 20px;
+      }
+
+      .release-notes-header {
+        font-size: 12px;
+        font-weight: 600;
+        color: rgba(248, 248, 248, 0.6);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+      }
+
+      .release-notes-content {
+        max-height: 120px;
+        overflow-y: auto;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: rgba(248, 248, 248, 0.7);
+      }
+
+      .release-notes-content::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .release-notes-content::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .release-notes-content::-webkit-scrollbar-thumb {
+        background: rgba(139, 92, 246, 0.3);
+        border-radius: 3px;
+      }
+
+      /* Close button */
+      .close-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border: none;
+        color: rgba(248, 248, 248, 0.5);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        -webkit-app-region: no-drag;
+      }
+
+      .close-btn:hover {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+      }
+
+      /* Hidden states */
+      .hidden {
+        display: none !important;
+      }
+
+      /* Spinner */
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="update-container">
+      <button class="close-btn" id="closeBtn" title="Close">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+
+      <div class="update-header">
+        <div class="update-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </div>
+        <div class="update-title-section">
+          <h1>Update Available</h1>
+          <p>A new version of Aetherium is ready</p>
+        </div>
+      </div>
+
+      <div class="update-body">
+        <!-- Version Info -->
+        <div class="version-info">
+          <div class="version-box">
+            <div class="version-label">Current</div>
+            <div class="version-number current" id="currentVersion">v1.2.2</div>
+          </div>
+          <svg
+            class="version-arrow"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+          <div class="version-box">
+            <div class="version-label">New</div>
+            <div class="version-number new" id="newVersion">v1.3.0</div>
+          </div>
+        </div>
+
+        <!-- Status Message -->
+        <div class="status-message info" id="statusMessage">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <span id="statusText">Ready to download update</span>
+        </div>
+
+        <!-- Progress Section -->
+        <div class="progress-section hidden" id="progressSection">
+          <div class="progress-header">
+            <span class="progress-status" id="progressStatus">Downloading...</span>
+            <span class="progress-percent" id="progressPercent">0%</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <div class="progress-details">
+            <span id="downloadedSize">0 MB</span>
+            <span id="downloadSpeed">-- MB/s</span>
+            <span id="totalSize">0 MB</span>
+          </div>
+        </div>
+
+        <!-- Release Notes (optional) -->
+        <div class="release-notes hidden" id="releaseNotes">
+          <div class="release-notes-header">What's New</div>
+          <div class="release-notes-content" id="releaseNotesContent"></div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="button-row" id="buttonRow">
+          <button class="btn btn-secondary" id="laterBtn">Later</button>
+          <button class="btn btn-primary" id="actionBtn">
+            <span id="actionBtnText">Download & Install</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Elements
+      const currentVersionEl = document.getElementById('currentVersion');
+      const newVersionEl = document.getElementById('newVersion');
+      const statusMessage = document.getElementById('statusMessage');
+      const statusText = document.getElementById('statusText');
+      const progressSection = document.getElementById('progressSection');
+      const progressBar = document.getElementById('progressBar');
+      const progressPercent = document.getElementById('progressPercent');
+      const progressStatus = document.getElementById('progressStatus');
+      const downloadedSize = document.getElementById('downloadedSize');
+      const downloadSpeed = document.getElementById('downloadSpeed');
+      const totalSize = document.getElementById('totalSize');
+      const releaseNotes = document.getElementById('releaseNotes');
+      const releaseNotesContent = document.getElementById('releaseNotesContent');
+      const actionBtn = document.getElementById('actionBtn');
+      const actionBtnText = document.getElementById('actionBtnText');
+      const laterBtn = document.getElementById('laterBtn');
+      const closeBtn = document.getElementById('closeBtn');
+
+      let updateState = 'ready'; // ready, downloading, downloaded, error
+
+      // Format bytes to MB
+      function formatBytes(bytes) {
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      }
+
+      // Set status message
+      function setStatus(type, text) {
+        statusMessage.className = `status-message ${type}`;
+        statusText.textContent = text;
+
+        // Update icon based on type
+        const iconSvg = statusMessage.querySelector('svg');
+        if (type === 'success') {
+          iconSvg.innerHTML =
+            '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>';
+        } else if (type === 'error') {
+          iconSvg.innerHTML =
+            '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+        } else if (type === 'warning') {
+          iconSvg.innerHTML =
+            '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>';
+        } else {
+          iconSvg.innerHTML =
+            '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>';
+        }
+      }
+
+      // Receive update info
+      window.updateAPI.onUpdateInfo((data) => {
+        currentVersionEl.textContent = 'v' + data.currentVersion;
+        newVersionEl.textContent = 'v' + data.newVersion;
+
+        if (data.releaseNotes) {
+          releaseNotesContent.textContent = data.releaseNotes;
+          releaseNotes.classList.remove('hidden');
+        }
+      });
+
+      // Download progress
+      window.updateAPI.onDownloadProgress((data) => {
         updateState = 'downloading';
         progressSection.classList.remove('hidden');
-        progressBar.classList.add('indeterminate');
-        progressBar.style.width = '30%';
         actionBtn.disabled = true;
         laterBtn.disabled = true;
         actionBtnText.textContent = 'Downloading...';
-        setStatus('info', 'Starting download...');
-        
-        ipcRenderer.send('start-update-download');
-      } else if (updateState === 'downloaded') {
-        // Install update
-        actionBtn.disabled = true;
-        laterBtn.disabled = true;
-        actionBtnText.innerHTML = '<div class="spinner"></div> Installing...';
-        setStatus('info', 'Installing update and restarting...');
-        
-        ipcRenderer.send('install-update');
-      }
-    });
 
-    // Later button
-    laterBtn.addEventListener('click', () => {
-      ipcRenderer.send('update-later');
-    });
+        const percent = Math.round(data.percent);
+        progressBar.style.width = percent + '%';
+        progressBar.classList.remove('indeterminate');
+        progressPercent.textContent = percent + '%';
+        progressStatus.textContent = 'Downloading update...';
 
-    // Close button
-    closeBtn.addEventListener('click', () => {
-      ipcRenderer.send('update-later');
-    });
-  </script>
-</body>
+        if (data.transferred && data.total) {
+          downloadedSize.textContent = formatBytes(data.transferred);
+          totalSize.textContent = formatBytes(data.total);
+        }
+
+        if (data.bytesPerSecond) {
+          downloadSpeed.textContent = formatBytes(data.bytesPerSecond) + '/s';
+        }
+
+        setStatus('info', `Downloading update: ${percent}%`);
+      });
+
+      // Download complete
+      window.updateAPI.onUpdateDownloaded((data) => {
+        updateState = 'downloaded';
+        progressSection.classList.add('hidden');
+        actionBtn.disabled = false;
+        laterBtn.disabled = false;
+        actionBtnText.textContent = 'Install & Restart';
+
+        setStatus('success', 'Update downloaded and ready to install!');
+      });
+
+      // Error
+      window.updateAPI.onUpdateError((data) => {
+        updateState = 'error';
+        progressSection.classList.add('hidden');
+        actionBtn.disabled = false;
+        laterBtn.disabled = false;
+        actionBtnText.textContent = 'Retry Download';
+
+        let errorMsg = 'Download failed';
+        if (data.message) {
+          if (data.message.includes('net::')) {
+            errorMsg = 'Network error. Check your connection.';
+          } else if (data.message.includes('ENOSPC')) {
+            errorMsg = 'Not enough disk space.';
+          } else {
+            errorMsg = data.message;
+          }
+        }
+
+        setStatus('error', errorMsg);
+      });
+
+      // Action button click
+      actionBtn.addEventListener('click', () => {
+        if (updateState === 'ready' || updateState === 'error') {
+          // Start download
+          updateState = 'downloading';
+          progressSection.classList.remove('hidden');
+          progressBar.classList.add('indeterminate');
+          progressBar.style.width = '30%';
+          actionBtn.disabled = true;
+          laterBtn.disabled = true;
+          actionBtnText.textContent = 'Downloading...';
+          setStatus('info', 'Starting download...');
+
+          window.updateAPI.startDownload();
+        } else if (updateState === 'downloaded') {
+          // Install update
+          actionBtn.disabled = true;
+          laterBtn.disabled = true;
+          actionBtnText.innerHTML = '<div class="spinner"></div> Installing...';
+          setStatus('info', 'Installing update and restarting...');
+
+          window.updateAPI.installUpdate();
+        }
+      });
+
+      // Later button
+      laterBtn.addEventListener('click', () => {
+        window.updateAPI.later();
+      });
+
+      // Close button
+      closeBtn.addEventListener('click', () => {
+        window.updateAPI.later();
+      });
+    </script>
+  </body>
 </html>

@@ -1,765 +1,808 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-<meta charset="UTF-8">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: transparent;
-    overflow: hidden;
-    -webkit-app-region: no-drag;
-    user-select: none;
-  }
-
-  /* Gaming overlay style - semi-transparent, minimal */
-  .overlay-container {
-    position: fixed;
-    top: 16px;
-    left: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-width: 380px;
-  }
-
-  /* Message notification card */
-  .overlay-card {
-    background: rgba(18, 18, 24, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 12px 14px;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
-    position: relative;
-    animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    transition: transform 0.15s ease, background 0.15s ease;
-  }
-
-  .overlay-card:hover {
-    background: rgba(24, 24, 32, 0.85);
-    transform: translateX(4px);
-  }
-
-  .overlay-card.hiding {
-    animation: slideOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
-  }
-
-  @keyframes slideIn {
-    from { 
-      transform: translateX(-120%);
-      opacity: 0;
-    }
-    to { 
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-
-  @keyframes slideOut {
-    to { 
-      transform: translateX(-120%);
-      opacity: 0;
-    }
-  }
-
-  /* Call notification - more prominent */
-  .overlay-card.call {
-    background: rgba(18, 18, 24, 0.88);
-    border-color: rgba(34, 197, 94, 0.3);
-    padding: 14px 16px;
-    animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1), callPulse 2s ease-in-out infinite;
-  }
-
-  @keyframes callPulse {
-    0%, 100% { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(34, 197, 94, 0.3); }
-    50% { box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 8px rgba(34, 197, 94, 0); }
-  }
-
-  /* Avatar */
-  .avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 600;
-    font-size: 16px;
-    flex-shrink: 0;
-    position: relative;
-  }
-
-  .avatar img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-
-  /* Online indicator for calls */
-  .avatar.calling::after {
-    content: '';
-    position: absolute;
-    bottom: -2px;
-    right: -2px;
-    width: 12px;
-    height: 12px;
-    background: #22c55e;
-    border: 2px solid rgba(18, 18, 24, 0.9);
-    border-radius: 50%;
-    animation: ringPulse 1s ease-in-out infinite;
-  }
-
-  @keyframes ringPulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.2); }
-  }
-
-  /* Content */
-  .content {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .title-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #f1f5f9;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.3;
-  }
-
-  .timestamp {
-    font-size: 11px;
-    color: #64748b;
-    flex-shrink: 0;
-  }
-
-  .body {
-    font-size: 13px;
-    color: #cbd5e1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-top: 3px;
-    line-height: 1.4;
-  }
-
-  .click-hint {
-    font-size: 10px;
-    color: #64748b;
-    margin-top: 4px;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-  }
-
-  .overlay-card:hover .click-hint {
-    opacity: 1;
-  }
-
-  .call .body {
-    color: #22c55e;
-    font-weight: 500;
-  }
-
-  /* Call action buttons */
-  .call-actions {
-    display: flex;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .call-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-
-  .call-btn:hover {
-    transform: scale(1.1);
-  }
-
-  .call-btn:active {
-    transform: scale(0.95);
-  }
-
-  .call-btn.answer {
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: white;
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-  }
-
-  .call-btn.answer:hover {
-    box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
-  }
-
-  .call-btn.decline {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    color: white;
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-  }
-
-  .call-btn.decline:hover {
-    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
-  }
-
-  /* Close button */
-  .close-btn {
-    position: absolute;
-    top: 6px;
-    right: 8px;
-    width: 16px;
-    height: 16px;
-    background: none;
-    border: none;
-    color: #64748b;
-    cursor: pointer;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
-  }
-
-  .overlay-card:hover .close-btn {
-    opacity: 1;
-  }
-
-  .close-btn:hover {
-    color: #f1f5f9;
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  /* Progress bar for auto-dismiss */
-  .progress-bar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    height: 2px;
-    background: linear-gradient(90deg, #6366f1, #8b5cf6);
-    border-radius: 0 0 12px 12px;
-    animation: progressShrink var(--duration, 5s) linear forwards;
-  }
-
-  .call .progress-bar {
-    background: linear-gradient(90deg, #22c55e, #16a34a);
-  }
-
-  @keyframes progressShrink {
-    from { width: 100%; }
-    to { width: 0%; }
-  }
-
-  /* Quick reply (future) */
-  .quick-reply {
-    margin-top: 8px;
-    display: none;
-  }
-
-  .overlay-card.expanded .quick-reply {
-    display: block;
-  }
-
-  .quick-reply-input {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 8px 12px;
-    color: #f1f5f9;
-    font-size: 12px;
-    outline: none;
-  }
-
-  .quick-reply-input:focus {
-    border-color: rgba(99, 102, 241, 0.5);
-  }
-
-  /* System toast (downloads, errors, etc) */
-  .overlay-card.toast {
-    background: rgba(18, 18, 24, 0.85);
-    padding: 10px 14px;
-  }
-
-  .overlay-card.toast.success .progress-bar {
-    background: #22c55e;
-  }
-
-  .overlay-card.toast.error {
-    border-color: rgba(239, 68, 68, 0.3);
-  }
-
-  .overlay-card.toast.error .progress-bar {
-    background: #ef4444;
-  }
-
-  /* Toast icon */
-  .toast-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .toast-icon.success {
-    background: rgba(34, 197, 94, 0.15);
-    color: #22c55e;
-  }
-
-  .toast-icon.error {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-  }
-
-  .toast-icon.info {
-    background: rgba(99, 102, 241, 0.15);
-    color: #6366f1;
-  }
-
-  /* Active call overlay - persistent while in call */
-  .active-call-overlay {
-    position: fixed;
-    bottom: 16px;
-    right: 16px;
-    background: rgba(18, 18, 24, 0.88);
-    border: 1px solid rgba(34, 197, 94, 0.3);
-    border-radius: 16px;
-    padding: 12px 16px;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(34, 197, 94, 0.15);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
-    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    min-width: 200px;
-  }
-
-  @keyframes slideUp {
-    from { 
-      transform: translateY(100%);
-      opacity: 0;
-    }
-    to { 
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  .active-call-overlay.hiding {
-    animation: slideDown 0.2s ease-out forwards;
-  }
-
-  @keyframes slideDown {
-    to { 
-      transform: translateY(100%);
-      opacity: 0;
-    }
-  }
-
-  .active-call-overlay:hover {
-    background: rgba(24, 24, 32, 0.92);
-  }
-
-  .active-call-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 600;
-    font-size: 14px;
-    flex-shrink: 0;
-    position: relative;
-  }
-
-  .active-call-avatar img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-
-  /* Pulsing ring around avatar during call */
-  .active-call-avatar::before {
-    content: '';
-    position: absolute;
-    inset: -3px;
-    border-radius: 50%;
-    border: 2px solid rgba(34, 197, 94, 0.5);
-    animation: callRing 1.5s ease-in-out infinite;
-  }
-
-  @keyframes callRing {
-    0%, 100% { transform: scale(1); opacity: 0.5; }
-    50% { transform: scale(1.1); opacity: 0.2; }
-  }
-
-  .active-call-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .active-call-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: #f1f5f9;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .active-call-timer {
-    font-size: 12px;
-    color: #22c55e;
-    font-weight: 500;
-    font-family: 'SF Mono', 'JetBrains Mono', monospace;
-  }
-
-  .active-call-actions {
-    display: flex;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .active-call-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.15s ease, background 0.15s ease;
-    background: rgba(255, 255, 255, 0.1);
-    color: #f1f5f9;
-  }
-
-  .active-call-btn:hover {
-    transform: scale(1.1);
-    background: rgba(255, 255, 255, 0.15);
-  }
-
-  .active-call-btn.muted {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
-  }
-
-  .active-call-btn.hangup {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    color: white;
-  }
-
-  .active-call-btn.hangup:hover {
-    background: linear-gradient(135deg, #f87171, #ef4444);
-  }
-
-  /* Reduced motion */
-  @media (prefers-reduced-motion: reduce) {
-    .overlay-card,
-    .overlay-card.hiding,
-    .call-btn,
-    .progress-bar,
-    .active-call-overlay,
-    .active-call-avatar::before {
-      animation: none;
-      transition: none;
-    }
-    .overlay-card.call {
-      animation: none;
-    }
-  }
-</style>
-</head>
-<body>
-<div class="overlay-container" id="container"></div>
-<script>
-  const { ipcRenderer } = require('electron');
-  const container = document.getElementById('container');
-  let cardId = 0;
-  const activeCards = new Map();
-
-  ipcRenderer.on('show-overlay', (event, data) => {
-    createCard(data);
-  });
-
-  function createCard(data) {
-    const id = ++cardId;
-    const isCall = data.type === 'call';
-    const isToast = data.type === 'toast';
-    const duration = data.duration || (isCall ? 30000 : 5000);
-
-    const card = document.createElement('div');
-    card.className = `overlay-card ${data.type || ''} ${data.variant || ''}`;
-    card.id = `card-${id}`;
-    card.style.setProperty('--duration', `${duration}ms`);
-
-    let html = '';
-
-    // Close button
-    html += `<button class="close-btn" onclick="event.stopPropagation(); dismissCard(${id});">&times;</button>`;
-
-    if (isToast) {
-      // Toast notification
-      const iconClass = data.variant || 'info';
-      const icons = {
-        success: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
-        error: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
-        info: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
-      };
-      html += `<div class="toast-icon ${iconClass}">${icons[iconClass] || icons.info}</div>`;
-      html += `<div class="content">`;
-      html += `<div class="title">${escapeHtml(data.title || 'Notification')}</div>`;
-      if (data.body) html += `<div class="body">${escapeHtml(data.body)}</div>`;
-      html += `</div>`;
-    } else {
-      // Message or call notification
-      if (data.avatar) {
-        html += `<div class="avatar ${isCall ? 'calling' : ''}"><img src="${escapeHtml(data.avatar)}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${(data.title || '?').charAt(0).toUpperCase()}';"></div>`;
-      } else {
-        const initials = (data.title || '?').charAt(0).toUpperCase();
-        html += `<div class="avatar ${isCall ? 'calling' : ''}">${initials}</div>`;
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
 
-      html += `<div class="content">`;
-      html += `<div class="title-row">`;
-      html += `<div class="title">${escapeHtml(data.title || 'Aetherium')}</div>`;
-      html += `<div class="timestamp">just now</div>`;
-      html += `</div>`;
-      html += `<div class="body">${escapeHtml(data.body || (isCall ? 'Incoming call...' : ''))}</div>`;
-      if (!isCall) {
-        html += `<div class="click-hint">Click to open</div>`;
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: transparent;
+        overflow: hidden;
+        -webkit-app-region: no-drag;
+        user-select: none;
       }
-      html += `</div>`;
 
-      // Call buttons
-      if (isCall) {
-        html += `<div class="call-actions">`;
-        html += `<button class="call-btn answer" onclick="event.stopPropagation(); answerCall(${id});" title="Answer">`;
-        html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
-        html += `</button>`;
-        html += `<button class="call-btn decline" onclick="event.stopPropagation(); declineCall(${id});" title="Decline">`;
+      /* Gaming overlay style - semi-transparent, minimal */
+      .overlay-container {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 380px;
+      }
+
+      /* Message notification card */
+      .overlay-card {
+        background: rgba(18, 18, 24, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 12px 14px;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        position: relative;
+        animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        transition:
+          transform 0.15s ease,
+          background 0.15s ease;
+      }
+
+      .overlay-card:hover {
+        background: rgba(24, 24, 32, 0.85);
+        transform: translateX(4px);
+      }
+
+      .overlay-card.hiding {
+        animation: slideOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(-120%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes slideOut {
+        to {
+          transform: translateX(-120%);
+          opacity: 0;
+        }
+      }
+
+      /* Call notification - more prominent */
+      .overlay-card.call {
+        background: rgba(18, 18, 24, 0.88);
+        border-color: rgba(34, 197, 94, 0.3);
+        padding: 14px 16px;
+        animation:
+          slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+          callPulse 2s ease-in-out infinite;
+      }
+
+      @keyframes callPulse {
+        0%,
+        100% {
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.4),
+            0 0 0 0 rgba(34, 197, 94, 0.3);
+        }
+        50% {
+          box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.4),
+            0 0 0 8px rgba(34, 197, 94, 0);
+        }
+      }
+
+      /* Avatar */
+      .avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 16px;
+        flex-shrink: 0;
+        position: relative;
+      }
+
+      .avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+
+      /* Online indicator for calls */
+      .avatar.calling::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        right: -2px;
+        width: 12px;
+        height: 12px;
+        background: #22c55e;
+        border: 2px solid rgba(18, 18, 24, 0.9);
+        border-radius: 50%;
+        animation: ringPulse 1s ease-in-out infinite;
+      }
+
+      @keyframes ringPulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.2);
+        }
+      }
+
+      /* Content */
+      .content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #f1f5f9;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.3;
+      }
+
+      .timestamp {
+        font-size: 11px;
+        color: #64748b;
+        flex-shrink: 0;
+      }
+
+      .body {
+        font-size: 13px;
+        color: #cbd5e1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 3px;
+        line-height: 1.4;
+      }
+
+      .click-hint {
+        font-size: 10px;
+        color: #64748b;
+        margin-top: 4px;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+      }
+
+      .overlay-card:hover .click-hint {
+        opacity: 1;
+      }
+
+      .call .body {
+        color: #22c55e;
+        font-weight: 500;
+      }
+
+      /* Call action buttons */
+      .call-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .call-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          transform 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+
+      .call-btn:hover {
+        transform: scale(1.1);
+      }
+
+      .call-btn:active {
+        transform: scale(0.95);
+      }
+
+      .call-btn.answer {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+      }
+
+      .call-btn.answer:hover {
+        box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+      }
+
+      .call-btn.decline {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+      }
+
+      .call-btn.decline:hover {
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+      }
+
+      /* Close button */
+      .close-btn {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        width: 16px;
+        height: 16px;
+        background: none;
+        border: none;
+        color: #64748b;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        opacity: 0;
+        transition:
+          opacity 0.15s ease,
+          color 0.15s ease,
+          background 0.15s ease;
+      }
+
+      .overlay-card:hover .close-btn {
+        opacity: 1;
+      }
+
+      .close-btn:hover {
+        color: #f1f5f9;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      /* Progress bar for auto-dismiss */
+      .progress-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 2px;
+        background: linear-gradient(90deg, #6366f1, #8b5cf6);
+        border-radius: 0 0 12px 12px;
+        animation: progressShrink var(--duration, 5s) linear forwards;
+      }
+
+      .call .progress-bar {
+        background: linear-gradient(90deg, #22c55e, #16a34a);
+      }
+
+      @keyframes progressShrink {
+        from {
+          width: 100%;
+        }
+        to {
+          width: 0%;
+        }
+      }
+
+      /* Quick reply (future) */
+      .quick-reply {
+        margin-top: 8px;
+        display: none;
+      }
+
+      .overlay-card.expanded .quick-reply {
+        display: block;
+      }
+
+      .quick-reply-input {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #f1f5f9;
+        font-size: 12px;
+        outline: none;
+      }
+
+      .quick-reply-input:focus {
+        border-color: rgba(99, 102, 241, 0.5);
+      }
+
+      /* System toast (downloads, errors, etc) */
+      .overlay-card.toast {
+        background: rgba(18, 18, 24, 0.85);
+        padding: 10px 14px;
+      }
+
+      .overlay-card.toast.success .progress-bar {
+        background: #22c55e;
+      }
+
+      .overlay-card.toast.error {
+        border-color: rgba(239, 68, 68, 0.3);
+      }
+
+      .overlay-card.toast.error .progress-bar {
+        background: #ef4444;
+      }
+
+      /* Toast icon */
+      .toast-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .toast-icon.success {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+      }
+
+      .toast-icon.error {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+      }
+
+      .toast-icon.info {
+        background: rgba(99, 102, 241, 0.15);
+        color: #6366f1;
+      }
+
+      /* Active call overlay - persistent while in call */
+      .active-call-overlay {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        background: rgba(18, 18, 24, 0.88);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+        border-radius: 16px;
+        padding: 12px 16px;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow:
+          0 8px 32px rgba(0, 0, 0, 0.5),
+          0 0 20px rgba(34, 197, 94, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        min-width: 200px;
+      }
+
+      @keyframes slideUp {
+        from {
+          transform: translateY(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      .active-call-overlay.hiding {
+        animation: slideDown 0.2s ease-out forwards;
+      }
+
+      @keyframes slideDown {
+        to {
+          transform: translateY(100%);
+          opacity: 0;
+        }
+      }
+
+      .active-call-overlay:hover {
+        background: rgba(24, 24, 32, 0.92);
+      }
+
+      .active-call-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 14px;
+        flex-shrink: 0;
+        position: relative;
+      }
+
+      .active-call-avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+
+      /* Pulsing ring around avatar during call */
+      .active-call-avatar::before {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        border: 2px solid rgba(34, 197, 94, 0.5);
+        animation: callRing 1.5s ease-in-out infinite;
+      }
+
+      @keyframes callRing {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.5;
+        }
+        50% {
+          transform: scale(1.1);
+          opacity: 0.2;
+        }
+      }
+
+      .active-call-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .active-call-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #f1f5f9;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .active-call-timer {
+        font-size: 12px;
+        color: #22c55e;
+        font-weight: 500;
+        font-family: 'SF Mono', 'JetBrains Mono', monospace;
+      }
+
+      .active-call-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .active-call-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          transform 0.15s ease,
+          background 0.15s ease;
+        background: rgba(255, 255, 255, 0.1);
+        color: #f1f5f9;
+      }
+
+      .active-call-btn:hover {
+        transform: scale(1.1);
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      .active-call-btn.muted {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+      }
+
+      .active-call-btn.hangup {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+      }
+
+      .active-call-btn.hangup:hover {
+        background: linear-gradient(135deg, #f87171, #ef4444);
+      }
+
+      /* Reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        .overlay-card,
+        .overlay-card.hiding,
+        .call-btn,
+        .progress-bar,
+        .active-call-overlay,
+        .active-call-avatar::before {
+          animation: none;
+          transition: none;
+        }
+        .overlay-card.call {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="overlay-container" id="container"></div>
+    <script>
+      const container = document.getElementById('container');
+      let cardId = 0;
+      const activeCards = new Map();
+
+      window.overlayAPI.onShowOverlay((data) => {
+        createCard(data);
+      });
+
+      function createCard(data) {
+        const id = ++cardId;
+        const isCall = data.type === 'call';
+        const isToast = data.type === 'toast';
+        const duration = data.duration || (isCall ? 30000 : 5000);
+
+        const card = document.createElement('div');
+        card.className = `overlay-card ${data.type || ''} ${data.variant || ''}`;
+        card.id = `card-${id}`;
+        card.style.setProperty('--duration', `${duration}ms`);
+
+        let html = '';
+
+        // Close button
+        html += `<button class="close-btn" onclick="event.stopPropagation(); dismissCard(${id});">&times;</button>`;
+
+        if (isToast) {
+          // Toast notification
+          const iconClass = data.variant || 'info';
+          const icons = {
+            success:
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+            error:
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+            info: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+          };
+          html += `<div class="toast-icon ${iconClass}">${icons[iconClass] || icons.info}</div>`;
+          html += `<div class="content">`;
+          html += `<div class="title">${escapeHtml(data.title || 'Notification')}</div>`;
+          if (data.body) html += `<div class="body">${escapeHtml(data.body)}</div>`;
+          html += `</div>`;
+        } else {
+          // Message or call notification
+          if (data.avatar) {
+            html += `<div class="avatar ${isCall ? 'calling' : ''}"><img src="${escapeHtml(data.avatar)}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${(data.title || '?').charAt(0).toUpperCase()}';"></div>`;
+          } else {
+            const initials = (data.title || '?').charAt(0).toUpperCase();
+            html += `<div class="avatar ${isCall ? 'calling' : ''}">${initials}</div>`;
+          }
+
+          html += `<div class="content">`;
+          html += `<div class="title-row">`;
+          html += `<div class="title">${escapeHtml(data.title || 'Aetherium')}</div>`;
+          html += `<div class="timestamp">just now</div>`;
+          html += `</div>`;
+          html += `<div class="body">${escapeHtml(data.body || (isCall ? 'Incoming call...' : ''))}</div>`;
+          if (!isCall) {
+            html += `<div class="click-hint">Click to open</div>`;
+          }
+          html += `</div>`;
+
+          // Call buttons
+          if (isCall) {
+            html += `<div class="call-actions">`;
+            html += `<button class="call-btn answer" onclick="event.stopPropagation(); answerCall(${id});" title="Answer">`;
+            html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+            html += `</button>`;
+            html += `<button class="call-btn decline" onclick="event.stopPropagation(); declineCall(${id});" title="Decline">`;
+            html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" y1="2" x2="2" y2="22"/></svg>`;
+            html += `</button>`;
+            html += `</div>`;
+          }
+        }
+
+        // Progress bar (auto-dismiss indicator)
+        html += `<div class="progress-bar"></div>`;
+
+        card.innerHTML = html;
+        card.onclick = () => handleCardClick(id, data);
+        container.appendChild(card);
+
+        activeCards.set(id, { card, data, timeout: setTimeout(() => dismissCard(id), duration) });
+      }
+
+      function handleCardClick(id, data) {
+        const entry = activeCards.get(id);
+        if (!entry) return;
+
+        if (data.type !== 'call') {
+          window.overlayAPI.sendOverlayClicked(data);
+          dismissCard(id);
+        }
+      }
+
+      function answerCall(id) {
+        window.overlayAPI.sendAnswerCall();
+        dismissCard(id);
+      }
+
+      function declineCall(id) {
+        window.overlayAPI.sendDeclineCall();
+        dismissCard(id);
+      }
+
+      function dismissCard(id) {
+        const entry = activeCards.get(id);
+        if (!entry) return;
+
+        clearTimeout(entry.timeout);
+        entry.card.classList.add('hiding');
+
+        setTimeout(() => {
+          entry.card.remove();
+          activeCards.delete(id);
+
+          // If no more cards, tell main process to close overlay window
+          if (activeCards.size === 0) {
+            window.overlayAPI.sendDismiss();
+          }
+        }, 200);
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Expose dismiss for external calls
+      window.dismissCard = dismissCard;
+
+      // ============================================
+      // Active Call Overlay
+      // ============================================
+      let activeCallElement = null;
+      let callTimerInterval = null;
+      let callStartTime = null;
+      let isMuted = false;
+
+      window.overlayAPI.onShowActiveCall((data) => {
+        showActiveCall(data);
+      });
+
+      window.overlayAPI.onUpdateActiveCall((data) => {
+        updateActiveCall(data);
+      });
+
+      window.overlayAPI.onHideActiveCall(() => {
+        hideActiveCall();
+      });
+
+      function showActiveCall(data) {
+        hideActiveCall(); // Remove existing if any
+
+        callStartTime = data.startTime ? new Date(data.startTime) : new Date();
+        isMuted = data.isMuted || false;
+
+        const el = document.createElement('div');
+        el.className = 'active-call-overlay';
+        el.id = 'active-call';
+        el.onclick = () => window.overlayAPI.sendActiveCallClicked();
+
+        let html = '';
+
+        // Avatar
+        if (data.avatar) {
+          html += `<div class="active-call-avatar"><img src="${escapeHtml(data.avatar)}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${(data.name || '?').charAt(0).toUpperCase()}';"></div>`;
+        } else {
+          const initials = (data.name || '?').charAt(0).toUpperCase();
+          html += `<div class="active-call-avatar">${initials}</div>`;
+        }
+
+        // Info
+        html += `<div class="active-call-info">`;
+        html += `<div class="active-call-name">${escapeHtml(data.name || 'Call')}</div>`;
+        html += `<div class="active-call-timer" id="call-timer">00:00</div>`;
+        html += `</div>`;
+
+        // Actions
+        html += `<div class="active-call-actions">`;
+        html += `<button class="active-call-btn ${isMuted ? 'muted' : ''}" id="mute-btn" onclick="event.stopPropagation(); toggleMute();" title="${isMuted ? 'Unmute' : 'Mute'}">`;
+        html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+        if (isMuted) {
+          html += `<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
+        } else {
+          html += `<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
+        }
+        html += `</svg></button>`;
+        html += `<button class="active-call-btn hangup" onclick="event.stopPropagation(); hangupCall();" title="End Call">`;
         html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" y1="2" x2="2" y2="22"/></svg>`;
         html += `</button>`;
         html += `</div>`;
+
+        el.innerHTML = html;
+        document.body.appendChild(el);
+        activeCallElement = el;
+
+        // Start timer
+        updateCallTimer();
+        callTimerInterval = setInterval(updateCallTimer, 1000);
       }
-    }
 
-    // Progress bar (auto-dismiss indicator)
-    html += `<div class="progress-bar"></div>`;
+      function updateActiveCall(data) {
+        if (!activeCallElement) return;
 
-    card.innerHTML = html;
-    card.onclick = () => handleCardClick(id, data);
-    container.appendChild(card);
-
-    activeCards.set(id, { card, data, timeout: setTimeout(() => dismissCard(id), duration) });
-  }
-
-  function handleCardClick(id, data) {
-    const entry = activeCards.get(id);
-    if (!entry) return;
-    
-    if (data.type !== 'call') {
-      ipcRenderer.send('overlay-clicked', data);
-      dismissCard(id);
-    }
-  }
-
-  function answerCall(id) {
-    ipcRenderer.send('overlay-answer-call');
-    dismissCard(id);
-  }
-
-  function declineCall(id) {
-    ipcRenderer.send('overlay-decline-call');
-    dismissCard(id);
-  }
-
-  function dismissCard(id) {
-    const entry = activeCards.get(id);
-    if (!entry) return;
-    
-    clearTimeout(entry.timeout);
-    entry.card.classList.add('hiding');
-    
-    setTimeout(() => {
-      entry.card.remove();
-      activeCards.delete(id);
-      
-      // If no more cards, tell main process to close overlay window
-      if (activeCards.size === 0) {
-        ipcRenderer.send('overlay-dismiss');
-      }
-    }, 200);
-  }
-
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  // Expose dismiss for external calls
-  window.dismissCard = dismissCard;
-
-  // ============================================
-  // Active Call Overlay
-  // ============================================
-  let activeCallElement = null;
-  let callTimerInterval = null;
-  let callStartTime = null;
-  let isMuted = false;
-
-  ipcRenderer.on('show-active-call', (event, data) => {
-    showActiveCall(data);
-  });
-
-  ipcRenderer.on('update-active-call', (event, data) => {
-    updateActiveCall(data);
-  });
-
-  ipcRenderer.on('hide-active-call', () => {
-    hideActiveCall();
-  });
-
-  function showActiveCall(data) {
-    hideActiveCall(); // Remove existing if any
-
-    callStartTime = data.startTime ? new Date(data.startTime) : new Date();
-    isMuted = data.isMuted || false;
-
-    const el = document.createElement('div');
-    el.className = 'active-call-overlay';
-    el.id = 'active-call';
-    el.onclick = () => ipcRenderer.send('active-call-clicked');
-
-    let html = '';
-
-    // Avatar
-    if (data.avatar) {
-      html += `<div class="active-call-avatar"><img src="${escapeHtml(data.avatar)}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${(data.name || '?').charAt(0).toUpperCase()}';"></div>`;
-    } else {
-      const initials = (data.name || '?').charAt(0).toUpperCase();
-      html += `<div class="active-call-avatar">${initials}</div>`;
-    }
-
-    // Info
-    html += `<div class="active-call-info">`;
-    html += `<div class="active-call-name">${escapeHtml(data.name || 'Call')}</div>`;
-    html += `<div class="active-call-timer" id="call-timer">00:00</div>`;
-    html += `</div>`;
-
-    // Actions
-    html += `<div class="active-call-actions">`;
-    html += `<button class="active-call-btn ${isMuted ? 'muted' : ''}" id="mute-btn" onclick="event.stopPropagation(); toggleMute();" title="${isMuted ? 'Unmute' : 'Mute'}">`;
-    html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
-    if (isMuted) {
-      html += `<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
-    } else {
-      html += `<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
-    }
-    html += `</svg></button>`;
-    html += `<button class="active-call-btn hangup" onclick="event.stopPropagation(); hangupCall();" title="End Call">`;
-    html += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" y1="2" x2="2" y2="22"/></svg>`;
-    html += `</button>`;
-    html += `</div>`;
-
-    el.innerHTML = html;
-    document.body.appendChild(el);
-    activeCallElement = el;
-
-    // Start timer
-    updateCallTimer();
-    callTimerInterval = setInterval(updateCallTimer, 1000);
-  }
-
-  function updateActiveCall(data) {
-    if (!activeCallElement) return;
-
-    if (typeof data.isMuted === 'boolean' && data.isMuted !== isMuted) {
-      isMuted = data.isMuted;
-      const muteBtn = document.getElementById('mute-btn');
-      if (muteBtn) {
-        muteBtn.className = `active-call-btn ${isMuted ? 'muted' : ''}`;
-        muteBtn.title = isMuted ? 'Unmute' : 'Mute';
-        // Update icon
-        let iconHtml = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
-        if (isMuted) {
-          iconHtml += `<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
-        } else {
-          iconHtml += `<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
+        if (typeof data.isMuted === 'boolean' && data.isMuted !== isMuted) {
+          isMuted = data.isMuted;
+          const muteBtn = document.getElementById('mute-btn');
+          if (muteBtn) {
+            muteBtn.className = `active-call-btn ${isMuted ? 'muted' : ''}`;
+            muteBtn.title = isMuted ? 'Unmute' : 'Mute';
+            // Update icon
+            let iconHtml = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`;
+            if (isMuted) {
+              iconHtml += `<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
+            } else {
+              iconHtml += `<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>`;
+            }
+            iconHtml += `</svg>`;
+            muteBtn.innerHTML = iconHtml;
+          }
         }
-        iconHtml += `</svg>`;
-        muteBtn.innerHTML = iconHtml;
       }
-    }
-  }
 
-  function hideActiveCall() {
-    if (callTimerInterval) {
-      clearInterval(callTimerInterval);
-      callTimerInterval = null;
-    }
-    if (activeCallElement) {
-      activeCallElement.classList.add('hiding');
-      setTimeout(() => {
-        activeCallElement?.remove();
-        activeCallElement = null;
-      }, 200);
-    }
-  }
+      function hideActiveCall() {
+        if (callTimerInterval) {
+          clearInterval(callTimerInterval);
+          callTimerInterval = null;
+        }
+        if (activeCallElement) {
+          activeCallElement.classList.add('hiding');
+          setTimeout(() => {
+            activeCallElement?.remove();
+            activeCallElement = null;
+          }, 200);
+        }
+      }
 
-  function updateCallTimer() {
-    if (!callStartTime) return;
-    const timerEl = document.getElementById('call-timer');
-    if (!timerEl) return;
+      function updateCallTimer() {
+        if (!callStartTime) return;
+        const timerEl = document.getElementById('call-timer');
+        if (!timerEl) return;
 
-    const elapsed = Math.floor((Date.now() - callStartTime.getTime()) / 1000);
-    const mins = Math.floor(elapsed / 60);
-    const secs = elapsed % 60;
-    timerEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  }
+        const elapsed = Math.floor((Date.now() - callStartTime.getTime()) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        timerEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
 
-  function toggleMute() {
-    ipcRenderer.send('active-call-mute');
-  }
+      function toggleMute() {
+        window.overlayAPI.sendMute();
+      }
 
-  function hangupCall() {
-    ipcRenderer.send('active-call-hangup');
-  }
-</script>
-</body>
+      function hangupCall() {
+        window.overlayAPI.sendHangup();
+      }
+    </script>
+  </body>
 </html>
