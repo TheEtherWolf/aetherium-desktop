@@ -39,6 +39,9 @@ const IPC = Object.freeze({
   UPDATE_ACTIVE_CALL: 'update-active-call',
   HIDE_ACTIVE_CALL: 'hide-active-call',
 
+  // Theme sync (main → overlay)
+  OVERLAY_THEME_UPDATE: 'overlay-theme-update',
+
   // Auto-updater (main ↔ renderer via preload.js)
   CHECK_FOR_UPDATES: 'check-for-updates',
   INSTALL_UPDATE: 'install-update',
@@ -70,6 +73,27 @@ const IPC = Object.freeze({
   WINDOW_IS_MAXIMIZED: 'window-is-maximized',
   WINDOW_SHOWN: 'window-shown',
   WINDOW_MAXIMIZED_CHANGE: 'window-maximized-change',
+
+  // Auto-launch (start on login)
+  GET_AUTO_LAUNCH: 'get-auto-launch',
+  SET_AUTO_LAUNCH: 'set-auto-launch',
+
+  // Badge / unread count
+  SET_BADGE_COUNT: 'set-badge-count',
+
+  // Hardware acceleration
+  GET_HARDWARE_ACCELERATION: 'get-hardware-acceleration',
+  SET_HARDWARE_ACCELERATION: 'set-hardware-acceleration',
+
+  // Global push-to-talk & keybinds
+  PTT_KEY_DOWN: 'ptt-key-down',
+  PTT_KEY_UP: 'ptt-key-up',
+  GLOBAL_SHORTCUT_ACTION: 'global-shortcut-action',
+  GET_KEYBINDS: 'get-keybinds',
+  SET_KEYBINDS: 'set-keybinds',
+
+  // Deep links
+  DEEP_LINK_NAVIGATE: 'deep-link-navigate',
 
   // Miscellaneous
   SHOW_NOTIFICATION: 'show-notification',

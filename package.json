@@ -67,6 +67,12 @@
       ],
       "icon": "resources/icon.png"
     },
+    "protocols": {
+      "name": "Aetherium",
+      "schemes": [
+        "aetherium"
+      ]
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

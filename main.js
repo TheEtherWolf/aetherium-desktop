@@ -1,6 +1,7 @@
 'use strict';
 
 const { app, BrowserWindow, globalShortcut } = require('electron');
+const path = require('path');
 const logger = require('./src/logger');
 const windowManager = require('./src/window-manager');
 const trayModule = require('./src/tray');
@@ -8,7 +9,45 @@ const overlay = require('./src/overlay');
 const updater = require('./src/updater');
 const screenShare = require('./src/screen-share');
 const ipcHandlers = require('./src/ipc-handlers');
+const settings = require('./src/settings');
+const keybindsModule = require('./src/keybinds');
 const { IPC, FLASH_FRAME_DURATION_MS } = require('./src/constants');
+
+// Disable hardware acceleration if user toggled it off (must run before app.whenReady)
+if (settings.get('hardwareAcceleration', true) === false) {
+  app.disableHardwareAcceleration();
+}
+
+// Register aetherium:// deep link protocol
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('aetherium', process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('aetherium');
+}
+
+function handleDeepLink(url) {
+  if (!url || !url.startsWith('aetherium://')) return;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    console.error('Invalid deep link URL:', url);
+    return;
+  }
+  const type = parsed.hostname; // e.g. 'user', 'group', 'channel'
+  const id = parsed.pathname.replace(/^\//, '');
+  const win = windowManager.getMainWindow();
+  if (win) {
+    win.show();
+    if (win.isMinimized()) win.restore();
+    win.focus();
+    win.webContents.send(IPC.DEEP_LINK_NAVIGATE, { type, id });
+  }
+}
 
 // Handle certificate errors (log but do not bypass)
 app.on('certificate-error', (_event, _webContents, url, error, _certificate, callback) => {
@@ -22,7 +61,13 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    // On Windows/Linux, deep link URL comes as last argv element
+    const deepLinkUrl = argv.find((arg) => arg.startsWith('aetherium://'));
+    if (deepLinkUrl) {
+      handleDeepLink(deepLinkUrl);
+      return;
+    }
     const win = windowManager.getMainWindow();
     if (win) {
       win.setSkipTaskbar(false);
@@ -40,6 +85,12 @@ if (!gotTheLock) {
     }
   });
 }
+
+// macOS: handle deep links via open-url event
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLink(url);
+});
 
 app.whenReady().then(() => {
   logger.initLog();
@@ -60,6 +111,7 @@ app.whenReady().then(() => {
   updater.configureAutoUpdater();
   screenShare.initScreenShareHandlers();
   ipcHandlers.registerIpcHandlers();
+  keybindsModule.registerKeybinds();
 
   // Global shortcuts
   globalShortcut.register('F11', () => {
@@ -67,15 +119,18 @@ app.whenReady().then(() => {
     if (win) win.setFullScreen(!win.isFullScreen());
   });
 
-  globalShortcut.register('F12', () => {
-    const win = windowManager.getMainWindow();
-    if (win) win.webContents.toggleDevTools();
-  });
+  // Only register DevTools shortcuts in development builds
+  if (!app.isPackaged) {
+    globalShortcut.register('F12', () => {
+      const win = windowManager.getMainWindow();
+      if (win) win.webContents.toggleDevTools();
+    });
 
-  globalShortcut.register('CommandOrControl+Shift+I', () => {
-    const win = windowManager.getMainWindow();
-    if (win) win.webContents.toggleDevTools();
-  });
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+      const win = windowManager.getMainWindow();
+      if (win) win.webContents.toggleDevTools();
+    });
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showActiveCallOverlay: (data) => ipcRenderer.invoke('show-active-call-overlay', data),
   updateActiveCallOverlay: (data) => ipcRenderer.invoke('update-active-call-overlay', data),
   hideActiveCallOverlay: () => ipcRenderer.invoke('hide-active-call-overlay'),
+  updateOverlayTheme: (theme) => ipcRenderer.invoke('overlay-update-theme', theme),
 
   // Listen for navigation requests (clicking overlay card)
   onNavigateToConversation: (callback) => {
@@ -102,6 +103,51 @@ contextBridge.exposeInMainWorld('electronAPI', {
       process.platform === 'win32' || process.platform === 'darwin' || process.platform === 'linux',
   },
 
+  // ============================================
+  // Badge / unread count
+  // ============================================
+  setBadgeCount: (count) => ipcRenderer.invoke('set-badge-count', count),
+
+  // ============================================
+  // Hardware acceleration
+  // ============================================
+  hardwareAcceleration: {
+    isEnabled: () => ipcRenderer.invoke('get-hardware-acceleration'),
+    setEnabled: (enabled) => ipcRenderer.invoke('set-hardware-acceleration', enabled),
+  },
+
+  // ============================================
+  // Global keybinds / push-to-talk
+  // ============================================
+  keybinds: {
+    get: () => ipcRenderer.invoke('get-keybinds'),
+    set: (keybinds) => ipcRenderer.invoke('set-keybinds', keybinds),
+  },
+  onPTTKeyDown: (callback) => {
+    ipcRenderer.on('ptt-key-down', () => callback());
+  },
+  onPTTKeyUp: (callback) => {
+    ipcRenderer.on('ptt-key-up', () => callback());
+  },
+  onGlobalShortcutAction: (callback) => {
+    ipcRenderer.on('global-shortcut-action', (event, data) => callback(data));
+  },
+
+  // ============================================
+  // Auto-launch (start on login)
+  // ============================================
+  autoLaunch: {
+    isEnabled: () => ipcRenderer.invoke('get-auto-launch'),
+    setEnabled: (enabled) => ipcRenderer.invoke('set-auto-launch', enabled),
+  },
+
+  // ============================================
+  // Deep links
+  // ============================================
+  onDeepLink: (callback) => {
+    ipcRenderer.on('deep-link-navigate', (event, data) => callback(data));
+  },
+
   // Clear cache and reload (for web app updates)
   clearCacheAndReload: () => ipcRenderer.invoke('clear-cache-and-reload'),
 });
@@ -119,17 +165,12 @@ window.addEventListener('DOMContentLoaded', () => {
       this.tag = options.tag || null;
       this.data = options.data || {};
 
-      console.log('[Preload] ElectronNotification created:', title, options);
-      console.log('[Preload] document.hasFocus():', document.hasFocus());
-
       // Don't show notification if window is focused
       // The main process handles this check too, but we can skip the IPC
       if (document.hasFocus()) {
-        console.log('[Preload] Skipping - document has focus');
         return;
       }
 
-      console.log('[Preload] Sending show-overlay-notification IPC');
       // Show overlay notification
       ipcRenderer
         .invoke('show-overlay-notification', {
@@ -140,9 +181,7 @@ window.addEventListener('DOMContentLoaded', () => {
           conversationId: this.data.conversationId,
           duration: this.data.duration,
         })
-        .then((result) => {
-          console.log('[Preload] show-overlay-notification result:', result);
-        });
+        .catch(() => {});
     }
 
     close() {
@@ -169,4 +208,3 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-console.log('Aetherium Desktop preload script loaded');

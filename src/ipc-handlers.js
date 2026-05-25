@@ -10,12 +10,16 @@ const {
   showActiveCallOverlay,
   updateActiveCallOverlay,
   hideActiveCallOverlay,
+  updateOverlayTheme,
   getOverlayEnabled,
   setOverlayEnabled,
 } = require('./overlay');
 const { createUpdateWindow, getUpdateWindow, installAndRestart } = require('./updater');
 const { rebuildTrayMenu } = require('./tray');
 const { IPC } = require('./constants');
+const { setBadgeCount } = require('./badge');
+const settings = require('./settings');
+const keybinds = require('./keybinds');
 
 // ---------------------------------------------------------------------------
 // Input validation helpers
@@ -120,6 +124,12 @@ function registerIpcHandlers() {
 
   ipcMain.handle(IPC.HIDE_ACTIVE_CALL_OVERLAY, () => {
     hideActiveCallOverlay();
+    return true;
+  });
+
+  ipcMain.handle('overlay-update-theme', (_event, theme) => {
+    if (!isObject(theme)) return false;
+    updateOverlayTheme(theme);
     return true;
   });
 
@@ -257,6 +267,60 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC.WINDOW_IS_MAXIMIZED, () => {
     const win = getMainWindow();
     return win ? win.isMaximized() : false;
+  });
+
+  // -------------------------------------------------------------------------
+  // Auto-launch (start on login)
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(IPC.GET_AUTO_LAUNCH, () => {
+    const loginSettings = app.getLoginItemSettings();
+    return loginSettings.openAtLogin;
+  });
+
+  ipcMain.handle(IPC.SET_AUTO_LAUNCH, (_event, enabled) => {
+    if (!isBool(enabled)) return false;
+    app.setLoginItemSettings({ openAtLogin: enabled });
+    return app.getLoginItemSettings().openAtLogin;
+  });
+
+  // -------------------------------------------------------------------------
+  // Hardware acceleration
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(IPC.GET_HARDWARE_ACCELERATION, () => {
+    return settings.get('hardwareAcceleration', true);
+  });
+
+  ipcMain.handle(IPC.SET_HARDWARE_ACCELERATION, (_event, enabled) => {
+    if (!isBool(enabled)) return false;
+    settings.set('hardwareAcceleration', enabled);
+    return enabled;
+  });
+
+  // -------------------------------------------------------------------------
+  // Global keybinds / push-to-talk
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(IPC.GET_KEYBINDS, () => {
+    return keybinds.getKeybinds();
+  });
+
+  ipcMain.handle(IPC.SET_KEYBINDS, (_event, newKeybinds) => {
+    if (!isObject(newKeybinds)) return false;
+    keybinds.saveKeybinds(newKeybinds);
+    keybinds.registerKeybinds();
+    return keybinds.getKeybinds();
+  });
+
+  // -------------------------------------------------------------------------
+  // Badge / unread count
+  // -------------------------------------------------------------------------
+
+  ipcMain.handle(IPC.SET_BADGE_COUNT, (_event, count) => {
+    if (typeof count !== 'number' || count < 0) return false;
+    setBadgeCount(Math.floor(count));
+    return true;
   });
 
   // -------------------------------------------------------------------------
