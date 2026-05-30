@@ -56,12 +56,17 @@ function createScreenPickerWindow() {
 
     screenPickerWindow.loadFile(path.join(__dirname, '..', 'screen-picker.html'));
 
+    const pickerWebContentsId = screenPickerWindow.webContents.id;
+
     // Keep handler refs so we can remove them precisely
-    function onSelect(_event, sourceId) {
+    function onSelect(event, sourceId) {
+      // Ignore messages from unexpected senders (e.g. injected from main window)
+      if (event.sender.id !== pickerWebContentsId) return;
       cleanup();
       resolve(sourceId);
     }
-    function onCancel() {
+    function onCancel(event) {
+      if (event.sender.id !== pickerWebContentsId) return;
       cleanup();
       resolve(null);
     }
@@ -74,8 +79,8 @@ function createScreenPickerWindow() {
       screenPickerWindow = null;
     }
 
-    ipcMain.once(IPC.SCREEN_PICKER_SELECT, onSelect);
-    ipcMain.once(IPC.SCREEN_PICKER_CANCEL, onCancel);
+    ipcMain.on(IPC.SCREEN_PICKER_SELECT, onSelect);
+    ipcMain.on(IPC.SCREEN_PICKER_CANCEL, onCancel);
 
     screenPickerWindow.on('closed', () => {
       // Window closed by user (e.g. OS close button) without sending IPC

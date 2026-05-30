@@ -79,7 +79,7 @@ if (!gotTheLock) {
       win.flashFrame(true);
       setTimeout(() => {
         const w = windowManager.getMainWindow();
-        if (w) w.flashFrame(false);
+        if (w && !w.isDestroyed()) w.flashFrame(false);
       }, FLASH_FRAME_DURATION_MS);
       win.webContents.send(IPC.WINDOW_SHOWN);
     }

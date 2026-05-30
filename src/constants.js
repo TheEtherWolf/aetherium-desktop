@@ -100,7 +100,6 @@ const IPC = Object.freeze({
   OPEN_EXTERNAL: 'open-external',
   GET_APP_VERSION: 'get-app-version',
   CLEAR_CACHE_AND_RELOAD: 'clear-cache-and-reload',
-  RETRY_CONNECTION: 'retry-connection',
 });
 
 // Window dimensions

@@ -1,13 +1,15 @@
 'use strict';
 
-const { BrowserWindow, Notification } = require('electron');
+const { app, BrowserWindow, Notification, screen } = require('electron');
 const path = require('path');
 const { getMainWindow, getTargetDisplay } = require('./window-manager');
 const { IPC, OVERLAY_WIDTH } = require('./constants');
+const settings = require('./settings');
 
 let overlayWindow = null;
-let overlayEnabled = true;
+let overlayEnabled = settings.get('overlayEnabled', true);
 let activeCallData = null;
+let displayMetricsListener = null;
 
 /**
  * Sends an IPC message to the overlay window.
@@ -32,24 +34,25 @@ function createOverlayWindow() {
   }
 
   const display = getTargetDisplay(getMainWindow());
-  const { x: displayX, y: displayY } = display.bounds;
-  const { height: workH } = display.workArea;
+  const { x: workX, y: workY, height: workH } = display.workArea;
 
   console.log(
     '[Overlay] Creating on display:',
     display.id,
-    'at top-left',
-    displayX,
-    displayY,
+    'at workArea top-left',
+    workX,
+    workY,
     'height',
     workH
   );
 
+  const scaleFactor = display.scaleFactor || 1;
+
   overlayWindow = new BrowserWindow({
     width: OVERLAY_WIDTH,
     height: workH,
-    x: displayX,
-    y: displayY,
+    x: workX,
+    y: workY,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -63,6 +66,7 @@ function createOverlayWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preloads', 'overlay-preload.js'),
+      zoomFactor: 1 / scaleFactor,
     },
   });
 
@@ -72,6 +76,27 @@ function createOverlayWindow() {
   overlayWindow.on('closed', () => {
     overlayWindow = null;
   });
+
+  // Reposition overlay when display metrics change (resolution, DPI, etc.)
+  if (!displayMetricsListener) {
+    displayMetricsListener = () => {
+      if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible()) return;
+      const d = getTargetDisplay(getMainWindow());
+      const { x: dx, y: dy, height: wh } = d.workArea;
+      const sf = d.scaleFactor || 1;
+      overlayWindow.setBounds({ x: dx, y: dy, width: OVERLAY_WIDTH, height: wh });
+      overlayWindow.webContents.setZoomFactor(1 / sf);
+      console.log('[Overlay] Repositioned after display-metrics-changed');
+    };
+    screen.on('display-metrics-changed', displayMetricsListener);
+
+    app.once('before-quit', () => {
+      if (displayMetricsListener) {
+        screen.removeListener('display-metrics-changed', displayMetricsListener);
+        displayMetricsListener = null;
+      }
+    });
+  }
 
   return overlayWindow;
 }
@@ -101,15 +126,14 @@ function showOverlay(data) {
 
   // Reposition to current display in case the main window moved
   const display = getTargetDisplay(getMainWindow());
-  const { x: displayX, y: displayY } = display.bounds;
-  const { height: workH } = display.workArea;
-  overlay.setBounds({ x: displayX, y: displayY, width: OVERLAY_WIDTH, height: workH });
+  const { x: workX, y: workY, height: workH } = display.workArea;
+  overlay.setBounds({ x: workX, y: workY, width: OVERLAY_WIDTH, height: workH });
   console.log(
     '[Overlay] Repositioned for notification to display:',
     display.id,
     'at',
-    displayX,
-    displayY
+    workX,
+    workY
   );
 
   if (!overlay.isVisible()) {
@@ -137,10 +161,9 @@ function showActiveCallOverlay(data) {
   const overlay = createOverlayWindow();
 
   const display = getTargetDisplay(getMainWindow());
-  const { x: displayX, y: displayY } = display.bounds;
-  const { height: workH } = display.workArea;
-  overlay.setBounds({ x: displayX, y: displayY, width: OVERLAY_WIDTH, height: workH });
-  console.log('[Overlay] Repositioned to display:', display.id, 'at', displayX, displayY);
+  const { x: workX, y: workY, height: workH } = display.workArea;
+  overlay.setBounds({ x: workX, y: workY, width: OVERLAY_WIDTH, height: workH });
+  console.log('[Overlay] Repositioned to display:', display.id, 'at', workX, workY);
 
   if (!overlay.isVisible()) {
     overlay.showInactive();
@@ -178,6 +201,13 @@ function getOverlayEnabled() {
 
 function setOverlayEnabled(val) {
   overlayEnabled = val;
+  settings.set('overlayEnabled', val);
+}
+
+function updateOverlayTheme(theme) {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    sendWhenReady(overlayWindow, IPC.OVERLAY_THEME_UPDATE, theme);
+  }
 }
 
 function getOverlayWindow() {
@@ -190,6 +220,7 @@ module.exports = {
   showActiveCallOverlay,
   updateActiveCallOverlay,
   hideActiveCallOverlay,
+  updateOverlayTheme,
   getOverlayEnabled,
   setOverlayEnabled,
   getOverlayWindow,

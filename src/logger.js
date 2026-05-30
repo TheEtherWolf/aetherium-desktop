@@ -9,7 +9,9 @@ const logFile = path.join(app.getPath('userData'), 'overlay-debug.log');
 function debugLog(...args) {
   const timestamp = new Date().toISOString();
   const message = `[${timestamp}] ${args.join(' ')}\n`;
-  fs.appendFileSync(logFile, message);
+  fs.appendFile(logFile, message, (err) => {
+    if (err) console.error('[Logger] Failed to write log:', err.message);
+  });
   console.log(...args);
 }
 

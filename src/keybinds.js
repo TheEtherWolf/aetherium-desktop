@@ -13,12 +13,37 @@ const DEFAULT_KEYBINDS = {
 
 let registeredShortcuts = [];
 
+// Valid Electron accelerator pattern:
+// Optional modifiers (Command/Ctrl/Alt/Shift/Super/Meta) joined by '+',
+// followed by a key name. We allow a reasonable subset; globalShortcut.register
+// will be the final arbiter but we reject obviously bad values first.
+const ACCELERATOR_RE = /^((?:(?:Command|Cmd|Control|Ctrl|CommandOrControl|CmdOrCtrl|Alt|Option|AltGr|Shift|Super|Meta)\+)+)[A-Za-z0-9][\w]*$/;
+
+/**
+ * Returns true if `value` is a non-empty string that looks like a valid
+ * Electron accelerator.  Empty string is accepted (means "unset").
+ */
+function isValidAccelerator(value) {
+  if (typeof value !== 'string') return false;
+  if (value === '') return true; // empty = disabled, always OK
+  return ACCELERATOR_RE.test(value);
+}
+
 function getKeybinds() {
   return settings.get('keybinds', DEFAULT_KEYBINDS);
 }
 
 function saveKeybinds(keybinds) {
-  settings.set('keybinds', keybinds);
+  const validated = {};
+  for (const [key, value] of Object.entries(keybinds)) {
+    if (!isValidAccelerator(value)) {
+      console.warn(`[Keybinds] Ignoring invalid accelerator for "${key}":`, value);
+      validated[key] = '';
+    } else {
+      validated[key] = value;
+    }
+  }
+  settings.set('keybinds', validated);
 }
 
 function unregisterAll() {

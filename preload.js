@@ -1,4 +1,4 @@
-// Preload script for Aetherium Desktop
+﻿// Preload script for Aetherium Desktop
 // Bridges Electron main process with the web app renderer
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -26,11 +26,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Listen for overlay state changes (from tray menu)
   onOverlayEnabledChange: (callback) => {
+    ipcRenderer.removeAllListeners('overlay-enabled-change');
     ipcRenderer.on('overlay-enabled-change', (event, enabled) => callback(enabled));
   },
 
   // Listen for overlay actions (answer/decline call, mute, hangup from overlay)
   onOverlayAction: (callback) => {
+    ipcRenderer.removeAllListeners('overlay-action');
     ipcRenderer.on('overlay-action', (event, data) => callback(data));
   },
 
@@ -38,10 +40,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showActiveCallOverlay: (data) => ipcRenderer.invoke('show-active-call-overlay', data),
   updateActiveCallOverlay: (data) => ipcRenderer.invoke('update-active-call-overlay', data),
   hideActiveCallOverlay: () => ipcRenderer.invoke('hide-active-call-overlay'),
-  updateOverlayTheme: (theme) => ipcRenderer.invoke('overlay-update-theme', theme),
+  updateOverlayTheme: (theme) => ipcRenderer.invoke('overlay-theme-update', theme),
 
   // Listen for navigation requests (clicking overlay card)
   onNavigateToConversation: (callback) => {
+    ipcRenderer.removeAllListeners('navigate-to-conversation');
     ipcRenderer.on('navigate-to-conversation', (event, conversationId) => callback(conversationId));
   },
 
@@ -54,6 +57,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Window Events
   // ============================================
   onWindowShown: (callback) => {
+    ipcRenderer.removeAllListeners('window-shown');
     ipcRenderer.on('window-shown', () => callback());
   },
 
@@ -64,6 +68,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     close: () => ipcRenderer.send('window-close'),
     isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
     onMaximizedChange: (callback) => {
+      ipcRenderer.removeAllListeners('window-maximized-change');
       ipcRenderer.on('window-maximized-change', (event, isMaximized) => callback(isMaximized));
     },
   },
@@ -80,15 +85,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
     installUpdate: () => ipcRenderer.send('install-update'),
     onUpdateAvailable: (callback) => {
+      ipcRenderer.removeAllListeners('update-available');
       ipcRenderer.on('update-available', (event, info) => callback(info));
     },
     onUpdateProgress: (callback) => {
+      ipcRenderer.removeAllListeners('update-progress');
       ipcRenderer.on('update-progress', (event, progress) => callback(progress));
     },
     onUpdateDownloaded: (callback) => {
+      ipcRenderer.removeAllListeners('update-downloaded');
       ipcRenderer.on('update-downloaded', (event, info) => callback(info));
     },
     onUpdateError: (callback) => {
+      ipcRenderer.removeAllListeners('update-error');
       ipcRenderer.on('update-error', (event, error) => callback(error));
     },
   },
@@ -124,12 +133,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     set: (keybinds) => ipcRenderer.invoke('set-keybinds', keybinds),
   },
   onPTTKeyDown: (callback) => {
+    ipcRenderer.removeAllListeners('ptt-key-down');
     ipcRenderer.on('ptt-key-down', () => callback());
   },
   onPTTKeyUp: (callback) => {
+    ipcRenderer.removeAllListeners('ptt-key-up');
     ipcRenderer.on('ptt-key-up', () => callback());
   },
   onGlobalShortcutAction: (callback) => {
+    ipcRenderer.removeAllListeners('global-shortcut-action');
     ipcRenderer.on('global-shortcut-action', (event, data) => callback(data));
   },
 
@@ -145,6 +157,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Deep links
   // ============================================
   onDeepLink: (callback) => {
+    ipcRenderer.removeAllListeners('deep-link-navigate');
     ipcRenderer.on('deep-link-navigate', (event, data) => callback(data));
   },
 
@@ -153,58 +166,71 @@ contextBridge.exposeInMainWorld('electronAPI', {
 });
 
 // ============================================
-// Override Browser Notification API
+// Override Browser Notification API (via contextBridge)
 // ============================================
+// Expose a factory function so the renderer can replace window.Notification
+// without the preload ever touching ipcRenderer outside contextBridge.
+contextBridge.exposeInMainWorld('__aetheriumNotificationShim', {
+  // Called by the renderer shim below to fire an overlay notification.
+  // This delegates to the already-validated showOverlayNotification handler.
+  show: (data) => ipcRenderer.invoke('show-overlay-notification', data).catch(() => {}),
+});
+
+// Install the shim into the renderer world via contextBridge-safe injection.
+// We use a script element so it runs in the renderer JS context (not preload),
+// meaning it has access to window.Notification but can only call through the
+// contextBridge surface (__aetheriumNotificationShim) â€” never ipcRenderer.
 window.addEventListener('DOMContentLoaded', () => {
-  // Custom Notification class that uses overlay when enabled
-  class ElectronNotification {
-    constructor(title, options = {}) {
-      this.title = title;
-      this.body = options.body || '';
-      this.icon = options.icon || null;
-      this.tag = options.tag || null;
-      this.data = options.data || {};
+  const script = document.createElement('script');
+  script.textContent = `
+    (function () {
+      var _shim = window.__aetheriumNotificationShim;
+      if (!_shim) return;
 
-      // Don't show notification if window is focused
-      // The main process handles this check too, but we can skip the IPC
-      if (document.hasFocus()) {
-        return;
-      }
+      function ElectronNotification(title, options) {
+        // Guard against being called without 'new' (would bind 'this' to window).
+        if (!(this instanceof ElectronNotification)) {
+          return new ElectronNotification(title, options);
+        }
+        options = options || {};
+        this.title = title;
+        this.body = options.body || '';
+        this.icon = options.icon || null;
+        this.tag = options.tag || null;
+        this.data = options.data || {};
 
-      // Show overlay notification
-      ipcRenderer
-        .invoke('show-overlay-notification', {
-          type: this.data.type || 'message',
+        // Skip if the window is focused â€” main process also checks, but avoid IPC.
+        if (document.hasFocus()) return;
+
+        _shim.show({
+          type: (this.data && this.data.type) || 'message',
           title: this.title,
           body: this.body,
           avatar: this.icon,
-          conversationId: this.data.conversationId,
-          duration: this.data.duration,
-        })
-        .catch(() => {});
-    }
+          conversationId: this.data && this.data.conversationId,
+          duration: this.data && this.data.duration,
+        });
+      }
 
-    close() {
-      // Overlay handles auto-dismiss
-    }
+      ElectronNotification.prototype.close = function () {};
+      Object.defineProperty(ElectronNotification, 'permission', {
+        get: function () { return 'granted'; },
+      });
+      ElectronNotification.requestPermission = function () {
+        return Promise.resolve('granted');
+      };
 
-    static get permission() {
-      return 'granted';
-    }
+      Object.defineProperty(window, 'Notification', {
+        value: ElectronNotification,
+        writable: true,
+        configurable: true,
+      });
 
-    static requestPermission() {
-      return Promise.resolve('granted');
-    }
-  }
-
-  // Replace browser Notification with our Electron version
-  window.Notification = ElectronNotification;
-
-  // Also intercept any calls to the Notification API that might bypass our class
-  Object.defineProperty(window, 'Notification', {
-    value: ElectronNotification,
-    writable: false,
-    configurable: false,
-  });
+      // Clean up the bridge helper â€” no longer needed after install.
+      try { delete window.__aetheriumNotificationShim; } catch (_) {}
+    })();
+  `;
+  document.head.appendChild(script);
+  script.remove();
 });
 

@@ -12,7 +12,18 @@ function readSettings() {
   if (cache) return cache;
   try {
     cache = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
-  } catch {
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      // File exists but could not be parsed — log and back up the corrupt file
+      console.error('[Settings] Failed to parse settings file:', err.message);
+      try {
+        const backupPath = SETTINGS_FILE + '.corrupt.' + Date.now();
+        fs.copyFileSync(SETTINGS_FILE, backupPath);
+        console.error('[Settings] Corrupt file backed up to:', backupPath);
+      } catch (backupErr) {
+        console.error('[Settings] Could not back up corrupt file:', backupErr.message);
+      }
+    }
     cache = {};
   }
   return cache;

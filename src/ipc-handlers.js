@@ -127,7 +127,7 @@ function registerIpcHandlers() {
     return true;
   });
 
-  ipcMain.handle('overlay-update-theme', (_event, theme) => {
+  ipcMain.handle(IPC.OVERLAY_THEME_UPDATE, (_event, theme) => {
     if (!isObject(theme)) return false;
     updateOverlayTheme(theme);
     return true;
@@ -373,15 +373,9 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle(IPC.RETRY_CONNECTION, () => {
-    const { AETHERIUM_URL } = require('./constants');
-    const win = getMainWindow();
-    if (win) {
-      win.loadURL(AETHERIUM_URL);
-      return true;
-    }
-    return false;
-  });
+  // NOTE: IPC.RETRY_CONNECTION ('retry-connection') was removed — it had no caller.
+  // The error screen's "Retry Connection" button uses location.reload() directly.
 }
+
 
 module.exports = { registerIpcHandlers };

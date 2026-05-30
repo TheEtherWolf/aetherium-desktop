@@ -14,6 +14,7 @@ const {
 
 let updateWindow = null;
 let updateInfo = null;
+let periodicCheckInterval = null;
 
 // Semver validation — guard against a compromised update server
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[\w.]+)?(\+[\w.]+)?$/;
@@ -85,22 +86,48 @@ function installAndRestart() {
 }
 
 /**
- * Performs an initial update check and starts a single periodic interval.
+ * Performs an initial update check with retry/backoff, then starts a single
+ * periodic interval (hourly). Guards against double-invocation.
  * Only runs if the app is packaged (not in development).
  */
 function startPeriodicCheck() {
   if (!app.isPackaged) return;
+  // Guard: only start once
+  if (periodicCheckInterval !== null) return;
 
-  autoUpdater.checkForUpdates().catch((err) => {
-    debugLog('[AutoUpdater] Initial check failed:', err.message);
-  });
+  // Initial check with backoff: retry at 5 min then 15 min on failure before
+  // settling into the regular hourly interval.
+  const RETRY_DELAYS_MS = [5 * 60 * 1000, 15 * 60 * 1000];
+  let retryIndex = 0;
 
-  setInterval(() => {
+  function attemptCheck() {
+    console.log('[AutoUpdater] Checking for updates...');
+    autoUpdater.checkForUpdates().catch((err) => {
+      debugLog('[AutoUpdater] Check failed:', err.message);
+      if (retryIndex < RETRY_DELAYS_MS.length) {
+        const delay = RETRY_DELAYS_MS[retryIndex++];
+        debugLog(`[AutoUpdater] Retrying in ${delay / 60000} min...`);
+        setTimeout(attemptCheck, delay);
+      }
+      // After retries exhausted, fall through to the periodic interval below
+    });
+  }
+
+  attemptCheck();
+
+  periodicCheckInterval = setInterval(() => {
     console.log('[AutoUpdater] Periodic update check...');
     autoUpdater.checkForUpdates().catch((err) => {
       debugLog('[AutoUpdater] Periodic check failed:', err.message);
     });
   }, UPDATE_CHECK_INTERVAL_MS);
+
+  app.once('before-quit', () => {
+    if (periodicCheckInterval !== null) {
+      clearInterval(periodicCheckInterval);
+      periodicCheckInterval = null;
+    }
+  });
 }
 
 /**
@@ -108,7 +135,10 @@ function startPeriodicCheck() {
  * Must be called once during app.whenReady().
  */
 function configureAutoUpdater() {
-  autoUpdater.autoDownload = true;
+  // autoDownload is false so we only download after the user sees the update
+  // window and clicks "Download".  The START_UPDATE_DOWNLOAD IPC handler in
+  // ipc-handlers.js calls autoUpdater.downloadUpdate() to start the transfer.
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => {
@@ -124,13 +154,16 @@ function configureAutoUpdater() {
     console.log('[AutoUpdater] Update available:', info.version);
     updateInfo = info;
 
+    // Open the update window so the user can review and consent to the download.
+    createUpdateWindow();
+
     const mainWin = getMainWindow();
     if (mainWin) {
       // Notify the web app renderer via IPC (safe — no executeJavaScript)
       mainWin.webContents.send(IPC.UPDATE_AVAILABLE, {
         version: info.version,
         releaseNotes: info.releaseNotes,
-        downloading: true,
+        downloading: false,
       });
     }
   });

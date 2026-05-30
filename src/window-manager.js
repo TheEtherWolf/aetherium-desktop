@@ -187,7 +187,11 @@ function createWindow(onReadyCallback) {
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(AETHERIUM_URL)) {
-      shell.openExternal(url);
+      if (/^https?:\/\//i.test(url)) {
+        shell.openExternal(url);
+      } else {
+        debugLog('[Security] Blocked non-http URL in setWindowOpenHandler:', url);
+      }
       return { action: 'deny' };
     }
     return { action: 'allow' };
@@ -196,7 +200,11 @@ function createWindow(onReadyCallback) {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(AETHERIUM_URL)) {
       event.preventDefault();
-      shell.openExternal(url);
+      if (/^https?:\/\//i.test(url)) {
+        shell.openExternal(url);
+      } else {
+        debugLog('[Security] Blocked non-http URL in will-navigate:', url);
+      }
     }
   });
 
