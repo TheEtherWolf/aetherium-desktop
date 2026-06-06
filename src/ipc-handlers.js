@@ -13,6 +13,7 @@ const {
   updateOverlayTheme,
   getOverlayEnabled,
   setOverlayEnabled,
+  getOverlayWindow,
 } = require('./overlay');
 const { createUpdateWindow, getUpdateWindow, installAndRestart } = require('./updater');
 const { rebuildTrayMenu } = require('./tray');
@@ -32,6 +33,12 @@ function isBool(v) {
 }
 function isObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+// Only the trusted local overlay window should be able to trigger call actions
+// (answer/decline/mute/hangup) — reject events from any other webContents.
+function fromOverlay(event) {
+  const ow = getOverlayWindow();
+  return !!ow && !ow.isDestroyed() && event.sender === ow.webContents;
 }
 
 /**
@@ -54,7 +61,8 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.on(IPC.OVERLAY_ANSWER_CALL, () => {
+  ipcMain.on(IPC.OVERLAY_ANSWER_CALL, (event) => {
+    if (!fromOverlay(event)) return;
     dismissOverlay();
     const win = getMainWindow();
     if (win) {
@@ -65,7 +73,8 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.on(IPC.OVERLAY_DECLINE_CALL, () => {
+  ipcMain.on(IPC.OVERLAY_DECLINE_CALL, (event) => {
+    if (!fromOverlay(event)) return;
     dismissOverlay();
     const win = getMainWindow();
     if (win) {
@@ -91,14 +100,16 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.on(IPC.ACTIVE_CALL_MUTE, () => {
+  ipcMain.on(IPC.ACTIVE_CALL_MUTE, (event) => {
+    if (!fromOverlay(event)) return;
     const win = getMainWindow();
     if (win) {
       win.webContents.send(IPC.OVERLAY_ACTION, { action: 'toggle-mute' });
     }
   });
 
-  ipcMain.on(IPC.ACTIVE_CALL_HANGUP, () => {
+  ipcMain.on(IPC.ACTIVE_CALL_HANGUP, (event) => {
+    if (!fromOverlay(event)) return;
     hideActiveCallOverlay();
     const win = getMainWindow();
     if (win) {
