@@ -29,8 +29,13 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient('aetherium');
 }
 
+// Only these link types are routed, and ids must be simple tokens
+// (uuid/slug) — anything else is dropped before reaching the renderer.
+const DEEP_LINK_TYPES = new Set(['user', 'group', 'channel', 'server', 'invite']);
+const DEEP_LINK_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
 function handleDeepLink(url) {
-  if (!url || !url.startsWith('aetherium://')) return;
+  if (!url || typeof url !== 'string' || url.length > 256 || !url.startsWith('aetherium://')) return;
   let parsed;
   try {
     parsed = new URL(url);
@@ -40,6 +45,10 @@ function handleDeepLink(url) {
   }
   const type = parsed.hostname; // e.g. 'user', 'group', 'channel'
   const id = parsed.pathname.replace(/^\//, '');
+  if (!DEEP_LINK_TYPES.has(type) || !DEEP_LINK_ID_PATTERN.test(id)) {
+    console.error('Rejected deep link with unexpected shape:', type, id);
+    return;
+  }
   const win = windowManager.getMainWindow();
   if (win) {
     win.show();

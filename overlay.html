@@ -3,6 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <style>
+      :root {
+        /* Theme-overridable via IPC */
+        --overlay-bg: 18, 18, 24;
+        --overlay-text: 241, 245, 249;
+        --overlay-text-muted: 148, 163, 184;
+        --overlay-text-dim: 100, 116, 139;
+        --overlay-brand: 99, 102, 241;
+        --overlay-brand-light: 139, 92, 246;
+        --overlay-success: 34, 197, 94;
+        --overlay-success-dark: 22, 163, 74;
+        --overlay-error: 239, 68, 68;
+        --overlay-error-dark: 220, 38, 38;
+        --overlay-border: 255, 255, 255;
+      }
+
       * {
         margin: 0;
         padding: 0;
@@ -30,13 +45,13 @@
 
       /* Message notification card */
       .overlay-card {
-        background: rgba(18, 18, 24, 0.75);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 12px 14px;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        background: rgba(var(--overlay-bg), 0.82);
+        border: 1px solid rgba(var(--overlay-border), 0.06);
+        border-radius: 16px;
+        padding: 14px 16px;
+        backdrop-filter: blur(20px) saturate(150%);
+        -webkit-backdrop-filter: blur(20px) saturate(150%);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(var(--overlay-border), 0.04);
         display: flex;
         align-items: center;
         gap: 12px;
@@ -49,7 +64,7 @@
       }
 
       .overlay-card:hover {
-        background: rgba(24, 24, 32, 0.85);
+        background: rgba(var(--overlay-bg), 0.92);
         transform: translateX(4px);
       }
 
@@ -77,8 +92,8 @@
 
       /* Call notification - more prominent */
       .overlay-card.call {
-        background: rgba(18, 18, 24, 0.88);
-        border-color: rgba(34, 197, 94, 0.3);
+        background: rgba(var(--overlay-bg), 0.88);
+        border-color: rgba(var(--overlay-success), 0.3);
         padding: 14px 16px;
         animation:
           slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1),
@@ -90,12 +105,12 @@
         100% {
           box-shadow:
             0 8px 32px rgba(0, 0, 0, 0.4),
-            0 0 0 0 rgba(34, 197, 94, 0.3);
+            0 0 0 0 rgba(var(--overlay-success), 0.3);
         }
         50% {
           box-shadow:
             0 8px 32px rgba(0, 0, 0, 0.4),
-            0 0 0 8px rgba(34, 197, 94, 0);
+            0 0 0 8px rgba(var(--overlay-success), 0);
         }
       }
 
@@ -104,7 +119,7 @@
         width: 42px;
         height: 42px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        background: linear-gradient(135deg, rgb(var(--overlay-brand)), rgb(var(--overlay-brand-light)));
         display: flex;
         align-items: center;
         justify-content: center;
@@ -130,8 +145,8 @@
         right: -2px;
         width: 12px;
         height: 12px;
-        background: #22c55e;
-        border: 2px solid rgba(18, 18, 24, 0.9);
+        background: rgb(var(--overlay-success));
+        border: 2px solid rgba(var(--overlay-bg), 0.9);
         border-radius: 50%;
         animation: ringPulse 1s ease-in-out infinite;
       }
@@ -161,7 +176,7 @@
       .title {
         font-size: 14px;
         font-weight: 600;
-        color: #f1f5f9;
+        color: rgb(var(--overlay-text));
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -170,13 +185,13 @@
 
       .timestamp {
         font-size: 11px;
-        color: #64748b;
+        color: rgb(var(--overlay-text-dim));
         flex-shrink: 0;
       }
 
       .body {
         font-size: 13px;
-        color: #cbd5e1;
+        color: rgb(var(--overlay-text-muted));
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -186,7 +201,7 @@
 
       .click-hint {
         font-size: 10px;
-        color: #64748b;
+        color: rgb(var(--overlay-text-dim));
         margin-top: 4px;
         opacity: 0;
         transition: opacity 0.15s ease;
@@ -197,7 +212,7 @@
       }
 
       .call .body {
-        color: #22c55e;
+        color: rgb(var(--overlay-success));
         font-weight: 500;
       }
 
@@ -231,23 +246,23 @@
       }
 
       .call-btn.answer {
-        background: linear-gradient(135deg, #22c55e, #16a34a);
+        background: linear-gradient(135deg, rgb(var(--overlay-success)), rgb(var(--overlay-success-dark)));
         color: white;
-        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        box-shadow: 0 4px 12px rgba(var(--overlay-success), 0.3);
       }
 
       .call-btn.answer:hover {
-        box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+        box-shadow: 0 6px 16px rgba(var(--overlay-success), 0.4);
       }
 
       .call-btn.decline {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
+        background: linear-gradient(135deg, rgb(var(--overlay-error)), rgb(var(--overlay-error-dark)));
         color: white;
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        box-shadow: 0 4px 12px rgba(var(--overlay-error), 0.3);
       }
 
       .call-btn.decline:hover {
-        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+        box-shadow: 0 6px 16px rgba(var(--overlay-error), 0.4);
       }
 
       /* Close button */
@@ -259,7 +274,7 @@
         height: 16px;
         background: none;
         border: none;
-        color: #64748b;
+        color: rgb(var(--overlay-text-dim));
         cursor: pointer;
         font-size: 12px;
         display: flex;
@@ -278,8 +293,8 @@
       }
 
       .close-btn:hover {
-        color: #f1f5f9;
-        background: rgba(255, 255, 255, 0.1);
+        color: rgb(var(--overlay-text));
+        background: rgba(var(--overlay-border), 0.1);
       }
 
       /* Progress bar for auto-dismiss */
@@ -288,13 +303,13 @@
         bottom: 0;
         left: 0;
         height: 2px;
-        background: linear-gradient(90deg, #6366f1, #8b5cf6);
-        border-radius: 0 0 12px 12px;
+        background: linear-gradient(90deg, rgb(var(--overlay-brand)), rgb(var(--overlay-brand-light)));
+        border-radius: 0 0 16px 16px;
         animation: progressShrink var(--duration, 5s) linear forwards;
       }
 
       .call .progress-bar {
-        background: linear-gradient(90deg, #22c55e, #16a34a);
+        background: linear-gradient(90deg, rgb(var(--overlay-success)), rgb(var(--overlay-success-dark)));
       }
 
       @keyframes progressShrink {
@@ -318,35 +333,35 @@
 
       .quick-reply-input {
         width: 100%;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(var(--overlay-border), 0.05);
+        border: 1px solid rgba(var(--overlay-border), 0.1);
         border-radius: 8px;
         padding: 8px 12px;
-        color: #f1f5f9;
+        color: rgb(var(--overlay-text));
         font-size: 12px;
         outline: none;
       }
 
       .quick-reply-input:focus {
-        border-color: rgba(99, 102, 241, 0.5);
+        border-color: rgba(var(--overlay-brand), 0.5);
       }
 
       /* System toast (downloads, errors, etc) */
       .overlay-card.toast {
-        background: rgba(18, 18, 24, 0.85);
+        background: rgba(var(--overlay-bg), 0.85);
         padding: 10px 14px;
       }
 
       .overlay-card.toast.success .progress-bar {
-        background: #22c55e;
+        background: rgb(var(--overlay-success));
       }
 
       .overlay-card.toast.error {
-        border-color: rgba(239, 68, 68, 0.3);
+        border-color: rgba(var(--overlay-error), 0.3);
       }
 
       .overlay-card.toast.error .progress-bar {
-        background: #ef4444;
+        background: rgb(var(--overlay-error));
       }
 
       /* Toast icon */
@@ -361,18 +376,18 @@
       }
 
       .toast-icon.success {
-        background: rgba(34, 197, 94, 0.15);
-        color: #22c55e;
+        background: rgba(var(--overlay-success), 0.15);
+        color: rgb(var(--overlay-success));
       }
 
       .toast-icon.error {
-        background: rgba(239, 68, 68, 0.15);
-        color: #ef4444;
+        background: rgba(var(--overlay-error), 0.15);
+        color: rgb(var(--overlay-error));
       }
 
       .toast-icon.info {
-        background: rgba(99, 102, 241, 0.15);
-        color: #6366f1;
+        background: rgba(var(--overlay-brand), 0.15);
+        color: rgb(var(--overlay-brand));
       }
 
       /* Active call overlay - persistent while in call */
@@ -380,15 +395,16 @@
         position: fixed;
         bottom: 16px;
         right: 16px;
-        background: rgba(18, 18, 24, 0.88);
-        border: 1px solid rgba(34, 197, 94, 0.3);
+        background: rgba(var(--overlay-bg), 0.88);
+        border: 1px solid rgba(var(--overlay-success), 0.3);
         border-radius: 16px;
         padding: 12px 16px;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(20px) saturate(150%);
+        -webkit-backdrop-filter: blur(20px) saturate(150%);
         box-shadow:
           0 8px 32px rgba(0, 0, 0, 0.5),
-          0 0 20px rgba(34, 197, 94, 0.15);
+          0 0 20px rgba(var(--overlay-success), 0.15),
+          inset 0 1px 0 rgba(var(--overlay-border), 0.04);
         display: flex;
         align-items: center;
         gap: 12px;
@@ -420,14 +436,14 @@
       }
 
       .active-call-overlay:hover {
-        background: rgba(24, 24, 32, 0.92);
+        background: rgba(var(--overlay-bg), 0.92);
       }
 
       .active-call-avatar {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #22c55e, #16a34a);
+        background: linear-gradient(135deg, rgb(var(--overlay-success)), rgb(var(--overlay-success-dark)));
         display: flex;
         align-items: center;
         justify-content: center;
@@ -451,7 +467,7 @@
         position: absolute;
         inset: -3px;
         border-radius: 50%;
-        border: 2px solid rgba(34, 197, 94, 0.5);
+        border: 2px solid rgba(var(--overlay-success), 0.5);
         animation: callRing 1.5s ease-in-out infinite;
       }
 
@@ -475,7 +491,7 @@
       .active-call-name {
         font-size: 13px;
         font-weight: 600;
-        color: #f1f5f9;
+        color: rgb(var(--overlay-text));
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -483,7 +499,7 @@
 
       .active-call-timer {
         font-size: 12px;
-        color: #22c55e;
+        color: rgb(var(--overlay-success));
         font-weight: 500;
         font-family: 'SF Mono', 'JetBrains Mono', monospace;
       }
@@ -506,27 +522,27 @@
         transition:
           transform 0.15s ease,
           background 0.15s ease;
-        background: rgba(255, 255, 255, 0.1);
-        color: #f1f5f9;
+        background: rgba(var(--overlay-border), 0.1);
+        color: rgb(var(--overlay-text));
       }
 
       .active-call-btn:hover {
         transform: scale(1.1);
-        background: rgba(255, 255, 255, 0.15);
+        background: rgba(var(--overlay-border), 0.15);
       }
 
       .active-call-btn.muted {
-        background: rgba(239, 68, 68, 0.2);
-        color: #ef4444;
+        background: rgba(var(--overlay-error), 0.2);
+        color: rgb(var(--overlay-error));
       }
 
       .active-call-btn.hangup {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
+        background: linear-gradient(135deg, rgb(var(--overlay-error)), rgb(var(--overlay-error-dark)));
         color: white;
       }
 
       .active-call-btn.hangup:hover {
-        background: linear-gradient(135deg, #f87171, #ef4444);
+        background: linear-gradient(135deg, rgb(var(--overlay-error)), rgb(var(--overlay-error)));
       }
 
       /* Reduced motion */
@@ -552,6 +568,21 @@
       const container = document.getElementById('container');
       let cardId = 0;
       const activeCards = new Map();
+
+      // Theme sync — update CSS custom properties when app theme changes
+      if (window.overlayAPI.onThemeUpdate) {
+        window.overlayAPI.onThemeUpdate((theme) => {
+          const root = document.documentElement;
+          if (theme.bg) root.style.setProperty('--overlay-bg', theme.bg);
+          if (theme.text) root.style.setProperty('--overlay-text', theme.text);
+          if (theme.textMuted) root.style.setProperty('--overlay-text-muted', theme.textMuted);
+          if (theme.textDim) root.style.setProperty('--overlay-text-dim', theme.textDim);
+          if (theme.brand) root.style.setProperty('--overlay-brand', theme.brand);
+          if (theme.brandLight) root.style.setProperty('--overlay-brand-light', theme.brandLight);
+          if (theme.success) root.style.setProperty('--overlay-success', theme.success);
+          if (theme.error) root.style.setProperty('--overlay-error', theme.error);
+        });
+      }
 
       window.overlayAPI.onShowOverlay((data) => {
         createCard(data);

@@ -1,6 +1,7 @@
 # Release v1.2.14 - Quick Instructions
 
 ## What Changed
+
 - Update check interval: **2 hours → 30 minutes**
 
 Users will get notified about updates much faster now!
@@ -8,11 +9,13 @@ Users will get notified about updates much faster now!
 ## Build & Release
 
 ### 1. Build
+
 ```powershell
 npm run build
 ```
 
 ### 2. Create GitHub Release
+
 ```powershell
 gh release create v1.2.14 `
   --title "Aetherium Desktop v1.2.14" `

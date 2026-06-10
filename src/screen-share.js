@@ -46,10 +46,11 @@ function createScreenPickerWindow() {
       frame: false,
       transparent: false,
       resizable: false,
-      backgroundColor: '#1e1f22',
+      backgroundColor: '#0e0d18',
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        sandbox: true,
         preload: path.join(__dirname, 'preloads', 'picker-preload.js'),
       },
     });

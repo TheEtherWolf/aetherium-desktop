@@ -17,8 +17,8 @@
           -apple-system,
           BlinkMacSystemFont,
           sans-serif;
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        color: #f8f8f8;
+        background: linear-gradient(135deg, #0e0d18 0%, #14121f 100%);
+        color: #e9e7f5;
         min-height: 100vh;
         display: flex;
         align-items: center;
@@ -29,12 +29,12 @@
 
       .update-container {
         width: 420px;
-        background: rgba(30, 30, 46, 0.95);
+        background: rgba(20, 18, 31, 0.95);
         border-radius: 16px;
-        border: 1px solid rgba(139, 92, 246, 0.2);
+        border: 1px solid rgba(139, 120, 255, 0.2);
         box-shadow:
           0 20px 60px rgba(0, 0, 0, 0.5),
-          0 0 40px rgba(139, 92, 246, 0.1);
+          0 0 40px rgba(139, 120, 255, 0.1);
         overflow: hidden;
         -webkit-app-region: no-drag;
       }
@@ -42,8 +42,8 @@
       /* Header */
       .update-header {
         padding: 24px 24px 20px;
-        background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.1));
-        border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+        background: linear-gradient(135deg, rgba(139, 120, 255, 0.15), rgba(96, 205, 255, 0.1));
+        border-bottom: 1px solid rgba(139, 120, 255, 0.15);
         display: flex;
         align-items: center;
         gap: 16px;
@@ -52,12 +52,12 @@
       .update-icon {
         width: 48px;
         height: 48px;
-        background: linear-gradient(135deg, #7c3aed, #3b82f6);
+        background: linear-gradient(135deg, #8b78ff, #60cdff);
         border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        box-shadow: 0 4px 12px rgba(139, 120, 255, 0.3);
       }
 
       .update-icon svg {
@@ -74,7 +74,7 @@
 
       .update-title-section p {
         font-size: 13px;
-        color: rgba(248, 248, 248, 0.6);
+        color: rgba(233, 231, 245, 0.6);
       }
 
       /* Body */
@@ -100,7 +100,7 @@
 
       .version-label {
         font-size: 11px;
-        color: rgba(248, 248, 248, 0.5);
+        color: rgba(233, 231, 245, 0.5);
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 4px;
@@ -113,15 +113,15 @@
       }
 
       .version-number.current {
-        color: rgba(248, 248, 248, 0.6);
+        color: rgba(233, 231, 245, 0.6);
       }
 
       .version-number.new {
-        color: #22c55e;
+        color: #7ee8a9;
       }
 
       .version-arrow {
-        color: rgba(248, 248, 248, 0.3);
+        color: rgba(233, 231, 245, 0.3);
       }
 
       /* Progress Section */
@@ -138,26 +138,26 @@
 
       .progress-status {
         font-size: 13px;
-        color: rgba(248, 248, 248, 0.8);
+        color: rgba(233, 231, 245, 0.8);
       }
 
       .progress-percent {
         font-size: 13px;
         font-weight: 600;
-        color: #7c3aed;
+        color: #8b78ff;
         font-family: 'JetBrains Mono', monospace;
       }
 
       .progress-bar-container {
         height: 8px;
-        background: rgba(124, 58, 237, 0.15);
+        background: rgba(139, 120, 255, 0.15);
         border-radius: 4px;
         overflow: hidden;
       }
 
       .progress-bar {
         height: 100%;
-        background: linear-gradient(90deg, #7c3aed, #3b82f6);
+        background: linear-gradient(90deg, #8b78ff, #60cdff);
         border-radius: 4px;
         transition: width 0.3s ease;
         width: 0%;
@@ -182,7 +182,7 @@
         justify-content: space-between;
         margin-top: 8px;
         font-size: 11px;
-        color: rgba(248, 248, 248, 0.4);
+        color: rgba(233, 231, 245, 0.4);
       }
 
       /* Status Messages */
@@ -197,27 +197,27 @@
       }
 
       .status-message.info {
-        background: rgba(59, 130, 246, 0.15);
-        border: 1px solid rgba(59, 130, 246, 0.3);
-        color: #60a5fa;
+        background: rgba(96, 205, 255, 0.15);
+        border: 1px solid rgba(96, 205, 255, 0.3);
+        color: #60cdff;
       }
 
       .status-message.success {
         background: rgba(34, 197, 94, 0.15);
         border: 1px solid rgba(34, 197, 94, 0.3);
-        color: #4ade80;
+        color: #7ee8a9;
       }
 
       .status-message.error {
         background: rgba(239, 68, 68, 0.15);
         border: 1px solid rgba(239, 68, 68, 0.3);
-        color: #f87171;
+        color: #f97c93;
       }
 
       .status-message.warning {
         background: rgba(245, 158, 11, 0.15);
         border: 1px solid rgba(245, 158, 11, 0.3);
-        color: #fbbf24;
+        color: #f2be50;
       }
 
       .status-message svg {
@@ -251,19 +251,19 @@
       }
 
       .btn-primary {
-        background: linear-gradient(135deg, #7c3aed, #6366f1);
+        background: linear-gradient(135deg, #8b78ff, #8b78ff);
         color: white;
-        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        box-shadow: 0 4px 12px rgba(139, 120, 255, 0.3);
       }
 
       .btn-primary:hover:not(:disabled) {
         transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
+        box-shadow: 0 6px 16px rgba(139, 120, 255, 0.4);
       }
 
       .btn-secondary {
         background: rgba(255, 255, 255, 0.08);
-        color: rgba(248, 248, 248, 0.8);
+        color: rgba(233, 231, 245, 0.8);
         border: 1px solid rgba(255, 255, 255, 0.1);
       }
 
@@ -280,7 +280,7 @@
       .release-notes-header {
         font-size: 12px;
         font-weight: 600;
-        color: rgba(248, 248, 248, 0.6);
+        color: rgba(233, 231, 245, 0.6);
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 8px;
@@ -294,7 +294,7 @@
         border-radius: 8px;
         font-size: 13px;
         line-height: 1.5;
-        color: rgba(248, 248, 248, 0.7);
+        color: rgba(233, 231, 245, 0.7);
       }
 
       .release-notes-content::-webkit-scrollbar {
@@ -306,7 +306,7 @@
       }
 
       .release-notes-content::-webkit-scrollbar-thumb {
-        background: rgba(139, 92, 246, 0.3);
+        background: rgba(139, 120, 255, 0.3);
         border-radius: 3px;
       }
 
@@ -320,7 +320,7 @@
         border-radius: 6px;
         background: rgba(255, 255, 255, 0.05);
         border: none;
-        color: rgba(248, 248, 248, 0.5);
+        color: rgba(233, 231, 245, 0.5);
         cursor: pointer;
         display: flex;
         align-items: center;

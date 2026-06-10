@@ -65,6 +65,7 @@ function createOverlayWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       preload: path.join(__dirname, 'preloads', 'overlay-preload.js'),
       zoomFactor: 1 / scaleFactor,
     },
