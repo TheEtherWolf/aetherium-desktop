@@ -3,6 +3,7 @@
 const { app, BrowserWindow, Menu, shell, screen } = require('electron');
 const path = require('path');
 const { debugLog } = require('./logger');
+const settings = require('./settings');
 const {
   AETHERIUM_URL,
   MAIN_WINDOW_WIDTH,
@@ -12,6 +13,7 @@ const {
 } = require('./constants');
 
 let mainWindow = null;
+let persistTimer = null;
 
 /**
  * Returns the current main BrowserWindow instance (or null).
@@ -33,13 +35,79 @@ function getTargetDisplay(win) {
 }
 
 /**
+ * True if the given bounds at least partially overlap some connected display's
+ * work area — guards against restoring a window onto an unplugged monitor.
+ */
+function isVisibleOnSomeDisplay(bounds) {
+  return screen.getAllDisplays().some((d) => {
+    const wa = d.workArea;
+    return (
+      bounds.x < wa.x + wa.width &&
+      bounds.x + bounds.width > wa.x &&
+      bounds.y < wa.y + wa.height &&
+      bounds.y + bounds.height > wa.y
+    );
+  });
+}
+
+/**
+ * Returns the window size/position to open with. Restores the persisted bounds
+ * when valid and still on-screen; otherwise falls back to the default size,
+ * centered (x/y left undefined so Electron centers the window).
+ */
+function getSavedBounds() {
+  const b = settings.get('windowBounds', null);
+  const out = { width: MAIN_WINDOW_WIDTH, height: MAIN_WINDOW_HEIGHT, x: undefined, y: undefined };
+  if (!b || typeof b.width !== 'number' || typeof b.height !== 'number') return out;
+  out.width = b.width;
+  out.height = b.height;
+  if (typeof b.x === 'number' && typeof b.y === 'number' && isVisibleOnSomeDisplay(b)) {
+    out.x = b.x;
+    out.y = b.y;
+  }
+  return out;
+}
+
+/**
+ * Persists the window's current size/position + maximized state so the next
+ * launch reopens exactly where the user left it. Skips saving bounds while
+ * maximized/minimized/fullscreen (those would clobber the "restored" size).
+ */
+function persistWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const isMax = mainWindow.isMaximized();
+  settings.set('windowMaximized', isMax);
+  if (!isMax && !mainWindow.isMinimized() && !mainWindow.isFullScreen()) {
+    settings.set('windowBounds', mainWindow.getBounds());
+  }
+}
+
+function schedulePersist() {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(persistWindowState, 400);
+}
+
+/**
+ * Clamp + apply a zoom factor and persist it. Ctrl +/-/0 use this.
+ */
+function setZoom(factor) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const z = Math.max(0.3, Math.min(3, Math.round(factor * 10) / 10));
+  mainWindow.webContents.setZoomFactor(z);
+  settings.set('zoomFactor', z);
+}
+
+/**
  * Creates the main application window.
  * @param {Function} onReadyCallback - Called when the window emits 'ready-to-show'.
  */
 function createWindow(onReadyCallback) {
+  const savedBounds = getSavedBounds();
   mainWindow = new BrowserWindow({
-    width: MAIN_WINDOW_WIDTH,
-    height: MAIN_WINDOW_HEIGHT,
+    width: savedBounds.width,
+    height: savedBounds.height,
+    x: savedBounds.x,
+    y: savedBounds.y,
     minWidth: 800,
     minHeight: 600,
     icon: path.join(__dirname, '..', 'resources', 'icon.png'),
@@ -50,6 +118,7 @@ function createWindow(onReadyCallback) {
       preload: path.join(__dirname, '..', 'preload.js'),
       webSecurity: true,
       allowRunningInsecureContent: false,
+      spellcheck: true,
     },
     frame: false,
     titleBarStyle: 'hidden',
@@ -77,11 +146,31 @@ function createWindow(onReadyCallback) {
     ALLOWED_PERMISSIONS.includes(permission)
   );
 
+  let mainFrameLoadRetries = 0;
   mainWindow.loadURL(AETHERIUM_URL);
 
   // Show a friendly error screen on connection failure
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    // A failed SUBFRAME (link-preview iframe, YouTube embed, MEGA preview…) or an
+    // aborted load (ERR_ABORTED, -3) must NEVER replace the whole app with the
+    // error screen. This handler not gating on isMainFrame was the root cause of
+    // "the app goes blank when a message with a link is sent/rendered": the embed
+    // iframe fails to load and the old code wiped document.body for the whole app.
+    if (!isMainFrame || errorCode === -3) {
+      debugLog('Ignoring non-fatal did-fail-load:', errorCode, errorDescription, 'isMainFrame=', isMainFrame);
+      return;
+    }
     debugLog('Page load failed:', errorCode, errorDescription);
+
+    // Transient network drop: auto-retry a couple times before the error screen.
+    if (mainFrameLoadRetries < 2) {
+      mainFrameLoadRetries++;
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(AETHERIUM_URL);
+      }, 2000 * mainFrameLoadRetries);
+      return;
+    }
+    mainFrameLoadRetries = 0;
 
     mainWindow.webContents
       .executeJavaScript(
@@ -177,9 +266,104 @@ function createWindow(onReadyCallback) {
 
   mainWindow.webContents.on('did-finish-load', () => {
     debugLog('Page loaded successfully');
+    mainFrameLoadRetries = 0;
+    // Restore persisted zoom level.
+    const savedZoom = settings.get('zoomFactor', 1);
+    if (typeof savedZoom === 'number' && savedZoom !== 1) {
+      mainWindow.webContents.setZoomFactor(savedZoom);
+    }
+  });
+
+  // Native right-click context menu (Electron ships none by default). Gives a
+  // chat app the expected Cut/Copy/Paste/Select-All plus spellcheck suggestions.
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    const { editFlags, isEditable, misspelledWord, dictionarySuggestions, selectionText } = params;
+    const template = [];
+
+    for (const suggestion of dictionarySuggestions || []) {
+      template.push({
+        label: suggestion,
+        click: () => mainWindow.webContents.replaceMisspelling(suggestion),
+      });
+    }
+    if (misspelledWord) {
+      if (template.length) template.push({ type: 'separator' });
+      template.push({
+        label: 'Add to dictionary',
+        click: () =>
+          mainWindow.webContents.session.addWordToSpellCheckerDictionary(misspelledWord),
+      });
+    }
+
+    if (isEditable || selectionText) {
+      if (template.length) template.push({ type: 'separator' });
+      template.push(
+        { label: 'Cut', role: 'cut', enabled: editFlags.canCut },
+        { label: 'Copy', role: 'copy', enabled: editFlags.canCopy },
+        { label: 'Paste', role: 'paste', enabled: editFlags.canPaste },
+        { type: 'separator' },
+        { label: 'Select All', role: 'selectAll', enabled: editFlags.canSelectAll }
+      );
+    }
+
+    if (template.length) {
+      Menu.buildFromTemplate(template).popup({ window: mainWindow });
+    }
+  });
+
+  // ponytail: local zoom (Ctrl +/-/0) + reload (Ctrl+R) via before-input-event —
+  // keeps them window-scoped instead of stealing the combos system-wide like
+  // globalShortcut would. DevTools reload stays dev-only via main.js.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const ctrl = input.control || input.meta;
+    if (!ctrl) return;
+    const wc = mainWindow.webContents;
+    if (input.key === '+' || input.key === '=') {
+      setZoom(wc.getZoomFactor() + 0.1);
+      event.preventDefault();
+    } else if (input.key === '-') {
+      setZoom(wc.getZoomFactor() - 0.1);
+      event.preventDefault();
+    } else if (input.key === '0') {
+      setZoom(1);
+      event.preventDefault();
+    } else if (input.key === 'r' || input.key === 'R') {
+      wc.reload();
+      event.preventDefault();
+    }
+  });
+
+  // Renderer crash recovery. did-fail-load only covers network load failures — it does
+  // NOT fire when the renderer process itself dies (crash / OOM / GPU process gone),
+  // which left the window blank with no way back except a full app restart. Auto-reload
+  // so the app self-heals. Throttled so a crash-on-load can't spin an infinite reload loop.
+  let lastCrashReload = 0;
+  let rapidCrashes = 0;
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    debugLog('Renderer process gone:', details.reason, details.exitCode);
+    if (details.reason === 'clean-exit') return;
+    const now = Date.now();
+    if (now - lastCrashReload < 5000) {
+      // Crashed again within 5s of the last recovery — likely a reload loop.
+      if (++rapidCrashes >= 3) {
+        debugLog('Renderer crashed repeatedly — leaving did-fail-load recovery UI to show.');
+        return;
+      }
+    } else {
+      rapidCrashes = 0;
+    }
+    lastCrashReload = now;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload();
+  });
+
+  mainWindow.webContents.on('unresponsive', () => {
+    debugLog('Renderer unresponsive — reloading');
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload();
   });
 
   mainWindow.once('ready-to-show', () => {
+    if (settings.get('windowMaximized', false)) mainWindow.maximize();
     mainWindow.show();
     if (typeof onReadyCallback === 'function') {
       onReadyCallback();
@@ -227,6 +411,13 @@ function createWindow(onReadyCallback) {
   mainWindow.on('unmaximize', () =>
     mainWindow.webContents.send(IPC.WINDOW_MAXIMIZED_CHANGE, false)
   );
+
+  // Persist window size/position/maximized state so the next launch restores it.
+  mainWindow.on('resize', schedulePersist);
+  mainWindow.on('move', schedulePersist);
+  mainWindow.on('maximize', persistWindowState);
+  mainWindow.on('unmaximize', persistWindowState);
+  mainWindow.on('close', persistWindowState);
 }
 
 module.exports = { createWindow, getMainWindow, getTargetDisplay };
