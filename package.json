@@ -1,6 +1,6 @@
 {
   "name": "aetherium-desktop",
-  "version": "1.2.22",
+  "version": "1.2.23",
   "description": "Aetherium Chat Desktop Application",
   "main": "main.js",
   "author": "Aetherium",
@@ -92,7 +92,8 @@
     "publish": {
       "provider": "github",
       "owner": "TheEtherWolf",
-      "repo": "aetherium-desktop"
+      "repo": "aetherium-desktop",
+      "releaseType": "release"
     }
   }
 }
