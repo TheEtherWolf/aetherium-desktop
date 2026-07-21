@@ -136,10 +136,10 @@ function startPeriodicCheck() {
  * Must be called once during app.whenReady().
  */
 function configureAutoUpdater() {
-  // autoDownload is false so we only download after the user sees the update
-  // window and clicks "Download".  The START_UPDATE_DOWNLOAD IPC handler in
-  // ipc-handlers.js calls autoUpdater.downloadUpdate() to start the transfer.
-  autoUpdater.autoDownload = false;
+  // Auto-download updates in the background and install them on quit, so the desktop app keeps
+  // itself up to date without the user having to click through the update window every time.
+  // (The update window still opens on update-available to show progress + an install-now option.)
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => {
