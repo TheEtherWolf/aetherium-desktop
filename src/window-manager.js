@@ -357,9 +357,27 @@ function createWindow(onReadyCallback) {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload();
   });
 
+  // A brief main-thread jank — rendering a message (avatars, cosmetics, profile effects,
+  // image/embed decode) — fires 'unresponsive', but the renderer almost always recovers on
+  // its own within a moment. Reloading immediately nuked the whole app on essentially every
+  // message. Wait out a grace period and cancel if the renderer reports 'responsive' again;
+  // only reload if it's genuinely stuck.
+  let unresponsiveTimer = null;
   mainWindow.webContents.on('unresponsive', () => {
-    debugLog('Renderer unresponsive — reloading');
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload();
+    if (unresponsiveTimer) return;
+    debugLog('Renderer unresponsive — waiting to see if it recovers');
+    unresponsiveTimer = setTimeout(() => {
+      unresponsiveTimer = null;
+      debugLog('Renderer still unresponsive after grace period — reloading');
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload();
+    }, 10000);
+  });
+  mainWindow.webContents.on('responsive', () => {
+    if (unresponsiveTimer) {
+      clearTimeout(unresponsiveTimer);
+      unresponsiveTimer = null;
+      debugLog('Renderer responsive again — no reload needed');
+    }
   });
 
   mainWindow.once('ready-to-show', () => {
