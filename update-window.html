@@ -5,10 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aetherium Update</title>
     <style>
+      :root {
+        --accent: #8b78ff;
+        --panel-bg: rgba(0, 0, 0, 0.2);
+        --panel-border: rgba(139, 120, 255, 0.1);
+        --text-dim: rgba(233, 231, 245, 0.6);
+        --text-body: rgba(233, 231, 245, 0.7);
+      }
+
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
       }
 
       body {
@@ -17,24 +30,26 @@
           -apple-system,
           BlinkMacSystemFont,
           sans-serif;
-        background: linear-gradient(135deg, #0e0d18 0%, #14121f 100%);
+        background: transparent;
         color: #e9e7f5;
-        min-height: 100vh;
         display: flex;
-        align-items: center;
-        justify-content: center;
+        padding: 14px;
         overflow: hidden;
         -webkit-app-region: drag;
       }
 
       .update-container {
-        width: 420px;
-        background: rgba(20, 18, 31, 0.95);
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(160deg, #14121f 0%, #100e1a 100%);
         border-radius: 16px;
-        border: 1px solid rgba(139, 120, 255, 0.2);
+        border: 1px solid rgba(139, 120, 255, 0.22);
         box-shadow:
-          0 20px 60px rgba(0, 0, 0, 0.5),
-          0 0 40px rgba(139, 120, 255, 0.1);
+          0 20px 60px rgba(0, 0, 0, 0.55),
+          0 0 40px rgba(139, 120, 255, 0.12);
         overflow: hidden;
         -webkit-app-region: no-drag;
       }
@@ -79,7 +94,11 @@
 
       /* Body */
       .update-body {
-        padding: 24px;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 20px 22px 22px;
       }
 
       /* Version Info */
@@ -88,8 +107,8 @@
         align-items: center;
         justify-content: center;
         gap: 16px;
-        margin-bottom: 24px;
-        padding: 16px;
+        margin-bottom: 16px;
+        padding: 14px;
         background: rgba(0, 0, 0, 0.2);
         border-radius: 10px;
       }
@@ -228,6 +247,8 @@
       .button-row {
         display: flex;
         gap: 12px;
+        margin-top: auto;
+        padding-top: 4px;
       }
 
       .btn {
@@ -251,9 +272,9 @@
       }
 
       .btn-primary {
-        background: linear-gradient(135deg, #8b78ff, #8b78ff);
+        background: linear-gradient(135deg, #8b78ff, #7c6cff);
         color: white;
-        box-shadow: 0 4px 12px rgba(139, 120, 255, 0.3);
+        box-shadow: 0 4px 12px rgba(139, 120, 255, 0.35);
       }
 
       .btn-primary:hover:not(:disabled) {
@@ -274,27 +295,54 @@
 
       /* Release Notes */
       .release-notes {
-        margin-bottom: 20px;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 18px;
       }
 
       .release-notes-header {
         font-size: 12px;
         font-weight: 600;
-        color: rgba(233, 231, 245, 0.6);
+        color: var(--text-dim);
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 8px;
       }
 
       .release-notes-content {
-        max-height: 120px;
+        flex: 1;
+        min-height: 60px;
         overflow-y: auto;
-        padding: 12px;
-        background: rgba(0, 0, 0, 0.2);
+        padding: 12px 14px;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
         border-radius: 8px;
         font-size: 13px;
         line-height: 1.5;
-        color: rgba(233, 231, 245, 0.7);
+        color: var(--text-body);
+      }
+
+      .release-notes-content .note-line {
+        position: relative;
+        padding-left: 16px;
+        margin-bottom: 6px;
+      }
+
+      .release-notes-content .note-line:last-child {
+        margin-bottom: 0;
+      }
+
+      .release-notes-content .note-line::before {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 8px;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--accent);
       }
 
       .release-notes-content::-webkit-scrollbar {
@@ -509,15 +557,59 @@
         }
       }
 
+      // Decode a handful of common HTML entities (safe, no DOM parsing).
+      function decodeEntities(str) {
+        return str
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&#39;/g, "'")
+          .replace(/&quot;/g, '"')
+          .replace(/&nbsp;/g, ' ');
+      }
+
+      // Convert a GitHub/electron-builder release body (HTML) to clean text lines.
+      function htmlToLines(html) {
+        return decodeEntities(
+          String(html)
+            .replace(/<\/(p|div|li|h\d)>/gi, '\n')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<li[^>]*>/gi, '\n')
+            .replace(/<[^>]+>/g, '') // strip any remaining tags
+        )
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0);
+      }
+
+      // releaseNotes may be a string OR an array of { version, note }.
+      function extractReleaseLines(notes) {
+        if (Array.isArray(notes)) {
+          return notes.flatMap((n) =>
+            htmlToLines((n && (n.note || n.releaseNotes)) || '')
+          );
+        }
+        return htmlToLines(notes || '');
+      }
+
       // Receive update info
       window.updateAPI.onUpdateInfo((data) => {
         currentVersionEl.textContent = 'v' + data.currentVersion;
         newVersionEl.textContent = 'v' + data.newVersion;
 
-        if (data.releaseNotes) {
-          releaseNotesContent.textContent = data.releaseNotes;
-          releaseNotes.classList.remove('hidden');
+        let lines = extractReleaseLines(data.releaseNotes);
+        if (lines.length === 0) {
+          lines = ['Bug fixes and improvements.'];
         }
+
+        releaseNotesContent.textContent = '';
+        for (const line of lines) {
+          const el = document.createElement('div');
+          el.className = 'note-line';
+          el.textContent = line; // safe: text node, no HTML injection
+          releaseNotesContent.appendChild(el);
+        }
+        releaseNotes.classList.remove('hidden');
       });
 
       // Download progress

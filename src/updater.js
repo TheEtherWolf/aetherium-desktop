@@ -98,7 +98,10 @@ function getUpdateWindow() {
  * without importing electron-updater directly.
  */
 function installAndRestart() {
-  autoUpdater.quitAndInstall(false, true);
+  // isSilent MUST be true: electron-updater IGNORES isForceRunAfter when isSilent is false, so
+  // quitAndInstall(false, true) installed correctly but never relaunched (user had to reopen the
+  // app manually). Silent install + force-run-after gives a seamless update-and-reopen.
+  autoUpdater.quitAndInstall(true, true);
 }
 
 /**

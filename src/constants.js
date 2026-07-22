@@ -107,7 +107,7 @@ const IPC = Object.freeze({
 // Window dimensions
 const OVERLAY_WIDTH = 400;
 const UPDATE_WINDOW_WIDTH = 450;
-const UPDATE_WINDOW_HEIGHT = 480;
+const UPDATE_WINDOW_HEIGHT = 540;
 const SCREEN_PICKER_WIDTH = 800;
 const SCREEN_PICKER_HEIGHT = 600;
 const MAIN_WINDOW_WIDTH = 1200;
