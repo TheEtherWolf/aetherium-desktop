@@ -569,6 +569,31 @@
       let cardId = 0;
       const activeCards = new Map();
 
+      // The overlay window covers the whole screen and is click-through by
+      // default. Enable mouse events only while the cursor is over a card, so
+      // clicks pass through to apps beneath everywhere else.
+      const hoveredCards = new Set();
+      function refreshInteractive() {
+        if (window.overlayAPI.setInteractive) {
+          window.overlayAPI.setInteractive(hoveredCards.size > 0);
+        }
+      }
+      function registerInteractive(el) {
+        el.addEventListener('pointerenter', () => {
+          hoveredCards.add(el);
+          refreshInteractive();
+        });
+        el.addEventListener('pointerleave', () => {
+          hoveredCards.delete(el);
+          refreshInteractive();
+        });
+      }
+      function unregisterInteractive(el) {
+        // Handles a card removed while the cursor is still over it (pointerleave
+        // may not fire), so the window can revert to click-through.
+        if (hoveredCards.delete(el)) refreshInteractive();
+      }
+
       // Theme sync — update CSS custom properties when app theme changes
       if (window.overlayAPI.onThemeUpdate) {
         window.overlayAPI.onThemeUpdate((theme) => {
@@ -600,6 +625,9 @@
         card.style.setProperty('--duration', `${duration}ms`);
 
         let html = '';
+        // Fallback initial for a broken avatar image (set as textContent, never
+        // interpolated into inline JS).
+        let avatarInitial = '';
 
         // Close button
         html += `<button class="close-btn" onclick="event.stopPropagation(); dismissCard(${id});">&times;</button>`;
@@ -621,11 +649,11 @@
           html += `</div>`;
         } else {
           // Message or call notification
+          avatarInitial = (data.title || '?').charAt(0).toUpperCase();
           if (data.avatar) {
-            html += `<div class="avatar ${isCall ? 'calling' : ''}"><img src="${escapeHtml(data.avatar)}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${(data.title || '?').charAt(0).toUpperCase()}';"></div>`;
+            html += `<div class="avatar ${isCall ? 'calling' : ''}"><img src="${escapeHtml(data.avatar)}" alt=""></div>`;
           } else {
-            const initials = (data.title || '?').charAt(0).toUpperCase();
-            html += `<div class="avatar ${isCall ? 'calling' : ''}">${initials}</div>`;
+            html += `<div class="avatar ${isCall ? 'calling' : ''}">${escapeHtml(avatarInitial)}</div>`;
           }
 
           html += `<div class="content">`;
@@ -656,8 +684,19 @@
         html += `<div class="progress-bar"></div>`;
 
         card.innerHTML = html;
+
+        // Safe avatar fallback: set the initial via textContent on load error.
+        const avatarImg = card.querySelector('.avatar img');
+        if (avatarImg) {
+          avatarImg.onerror = () => {
+            avatarImg.style.display = 'none';
+            avatarImg.parentNode.textContent = avatarInitial;
+          };
+        }
+
         card.onclick = () => handleCardClick(id, data);
         container.appendChild(card);
+        registerInteractive(card);
 
         activeCards.set(id, { card, data, timeout: setTimeout(() => dismissCard(id), duration) });
       }
@@ -687,6 +726,7 @@
         if (!entry) return;
 
         clearTimeout(entry.timeout);
+        unregisterInteractive(entry.card);
         entry.card.classList.add('hiding');
 
         setTimeout(() => {
@@ -741,13 +781,13 @@
         el.onclick = () => window.overlayAPI.sendActiveCallClicked();
 
         let html = '';
+        const avatarInitial = (data.name || '?').charAt(0).toUpperCase();
 
         // Avatar
         if (data.avatar) {
-          html += `<div class="active-call-avatar"><img src="${escapeHtml(data.avatar)}" alt="" onerror="this.style.display='none';this.parentNode.textContent='${(data.name || '?').charAt(0).toUpperCase()}';"></div>`;
+          html += `<div class="active-call-avatar"><img src="${escapeHtml(data.avatar)}" alt=""></div>`;
         } else {
-          const initials = (data.name || '?').charAt(0).toUpperCase();
-          html += `<div class="active-call-avatar">${initials}</div>`;
+          html += `<div class="active-call-avatar">${escapeHtml(avatarInitial)}</div>`;
         }
 
         // Info
@@ -772,7 +812,18 @@
         html += `</div>`;
 
         el.innerHTML = html;
+
+        // Safe avatar fallback: set the initial via textContent on load error.
+        const avatarImg = el.querySelector('.active-call-avatar img');
+        if (avatarImg) {
+          avatarImg.onerror = () => {
+            avatarImg.style.display = 'none';
+            avatarImg.parentNode.textContent = avatarInitial;
+          };
+        }
+
         document.body.appendChild(el);
+        registerInteractive(el);
         activeCallElement = el;
 
         // Start timer
@@ -808,6 +859,7 @@
           callTimerInterval = null;
         }
         if (activeCallElement) {
+          unregisterInteractive(activeCallElement);
           activeCallElement.classList.add('hiding');
           setTimeout(() => {
             activeCallElement?.remove();

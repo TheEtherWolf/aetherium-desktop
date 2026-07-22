@@ -20,6 +20,8 @@ const IPC = Object.freeze({
   OVERLAY_ANSWER_CALL: 'overlay-answer-call',
   OVERLAY_DECLINE_CALL: 'overlay-decline-call',
   OVERLAY_DISMISS: 'overlay-dismiss',
+  // Renderer toggles per-card click-through (whole window is click-through by default)
+  SET_OVERLAY_INTERACTIVE: 'set-overlay-interactive',
 
   // Overlay window receives these from main process
   SHOW_OVERLAY: 'show-overlay',

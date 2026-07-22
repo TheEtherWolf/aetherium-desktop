@@ -11,6 +11,7 @@ const {
   updateActiveCallOverlay,
   hideActiveCallOverlay,
   updateOverlayTheme,
+  setOverlayInteractive,
   getOverlayEnabled,
   setOverlayEnabled,
   getOverlayWindow,
@@ -50,7 +51,8 @@ function registerIpcHandlers() {
   // Overlay system
   // -------------------------------------------------------------------------
 
-  ipcMain.on(IPC.OVERLAY_CLICKED, (_event, data) => {
+  ipcMain.on(IPC.OVERLAY_CLICKED, (event, data) => {
+    if (!fromOverlay(event)) return;
     const win = getMainWindow();
     if (!win) return;
     win.show();
@@ -82,8 +84,14 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.on(IPC.OVERLAY_DISMISS, () => {
+  ipcMain.on(IPC.OVERLAY_DISMISS, (event) => {
+    if (!fromOverlay(event)) return;
     dismissOverlay();
+  });
+
+  ipcMain.on(IPC.SET_OVERLAY_INTERACTIVE, (event, interactive) => {
+    if (!fromOverlay(event)) return;
+    setOverlayInteractive(!!interactive);
   });
 
   ipcMain.handle(IPC.DISMISS_OVERLAY, () => {
@@ -91,7 +99,8 @@ function registerIpcHandlers() {
     return true;
   });
 
-  ipcMain.on(IPC.ACTIVE_CALL_CLICKED, () => {
+  ipcMain.on(IPC.ACTIVE_CALL_CLICKED, (event) => {
+    if (!fromOverlay(event)) return;
     const win = getMainWindow();
     if (win) {
       win.show();

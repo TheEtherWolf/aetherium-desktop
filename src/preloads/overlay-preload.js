@@ -48,6 +48,10 @@ contextBridge.exposeInMainWorld('overlayAPI', {
     // IPC.OVERLAY_DISMISS = 'overlay-dismiss'
     ipcRenderer.send('overlay-dismiss');
   },
+  setInteractive: (interactive) => {
+    // IPC.SET_OVERLAY_INTERACTIVE = 'set-overlay-interactive'
+    ipcRenderer.send('set-overlay-interactive', !!interactive);
+  },
   sendActiveCallClicked: () => {
     // IPC.ACTIVE_CALL_CLICKED = 'active-call-clicked'
     ipcRenderer.send('active-call-clicked');

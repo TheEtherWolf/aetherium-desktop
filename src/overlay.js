@@ -3,13 +3,21 @@
 const { app, BrowserWindow, Notification, screen } = require('electron');
 const path = require('path');
 const { getMainWindow, getTargetDisplay } = require('./window-manager');
-const { IPC, OVERLAY_WIDTH } = require('./constants');
+const { IPC } = require('./constants');
 const settings = require('./settings');
 
 let overlayWindow = null;
 let overlayEnabled = settings.get('overlayEnabled', true);
 let activeCallData = null;
 let displayMetricsListener = null;
+
+// Content state — the window is shared between message cards and the active-call
+// card. Track each independently and only hide the window when BOTH are empty.
+let hasMessages = false;
+let hasActiveCall = false;
+// Last theme pushed from the web app; replayed on (re)create so a fresh overlay
+// isn't stuck on the hardcoded-dark defaults for light-mode users.
+let lastTheme = null;
 
 /**
  * Sends an IPC message to the overlay window.
@@ -28,28 +36,49 @@ function sendWhenReady(win, channel, data) {
   }
 }
 
+// Cover the whole work area of the display the main window is on.
+function positionOverlayFullWorkArea() {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  const display = getTargetDisplay(getMainWindow());
+  const { x, y, width, height } = display.workArea;
+  overlayWindow.setBounds({ x, y, width, height });
+  overlayWindow.webContents.setZoomFactor(1 / (display.scaleFactor || 1));
+}
+
+// Show the window if anything is visible, hide (and reset to click-through) otherwise.
+function refreshOverlayVisibility() {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  if (hasMessages || hasActiveCall) {
+    if (!overlayWindow.isVisible()) overlayWindow.showInactive();
+  } else {
+    overlayWindow.hide();
+    // Reset to fully click-through so a stale interactive region can't linger.
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  }
+}
+
 function createOverlayWindow() {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     return overlayWindow;
   }
 
   const display = getTargetDisplay(getMainWindow());
-  const { x: workX, y: workY, height: workH } = display.workArea;
+  const { x: workX, y: workY, width: workW, height: workH } = display.workArea;
 
   console.log(
     '[Overlay] Creating on display:',
     display.id,
-    'at workArea top-left',
+    'covering workArea',
     workX,
     workY,
-    'height',
+    workW,
     workH
   );
 
   const scaleFactor = display.scaleFactor || 1;
 
   overlayWindow = new BrowserWindow({
-    width: OVERLAY_WIDTH,
+    width: workW,
     height: workH,
     x: workX,
     y: workY,
@@ -71,8 +100,16 @@ function createOverlayWindow() {
     },
   });
 
+  // Whole window is click-through by default; the renderer re-enables mouse
+  // events only while the cursor is over a card (SET_OVERLAY_INTERACTIVE).
   overlayWindow.setIgnoreMouseEvents(true, { forward: true });
   overlayWindow.loadFile(path.join(__dirname, '..', 'overlay.html'));
+
+  // Replay the last known theme once the page is ready so a freshly-created
+  // overlay adopts the user's current (possibly light) theme immediately.
+  if (lastTheme) {
+    sendWhenReady(overlayWindow, IPC.OVERLAY_THEME_UPDATE, lastTheme);
+  }
 
   overlayWindow.on('closed', () => {
     overlayWindow = null;
@@ -82,11 +119,7 @@ function createOverlayWindow() {
   if (!displayMetricsListener) {
     displayMetricsListener = () => {
       if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible()) return;
-      const d = getTargetDisplay(getMainWindow());
-      const { x: dx, y: dy, height: wh } = d.workArea;
-      const sf = d.scaleFactor || 1;
-      overlayWindow.setBounds({ x: dx, y: dy, width: OVERLAY_WIDTH, height: wh });
-      overlayWindow.webContents.setZoomFactor(1 / sf);
+      positionOverlayFullWorkArea();
       console.log('[Overlay] Repositioned after display-metrics-changed');
     };
     screen.on('display-metrics-changed', displayMetricsListener);
@@ -123,60 +156,37 @@ function showOverlay(data) {
     return;
   }
 
-  const overlay = createOverlayWindow();
-
+  createOverlayWindow();
   // Reposition to current display in case the main window moved
-  const display = getTargetDisplay(getMainWindow());
-  const { x: workX, y: workY, height: workH } = display.workArea;
-  overlay.setBounds({ x: workX, y: workY, width: OVERLAY_WIDTH, height: workH });
-  console.log(
-    '[Overlay] Repositioned for notification to display:',
-    display.id,
-    'at',
-    workX,
-    workY
-  );
+  positionOverlayFullWorkArea();
 
-  if (!overlay.isVisible()) {
-    overlay.showInactive();
-  }
-  overlay.setIgnoreMouseEvents(false);
-  sendWhenReady(overlay, IPC.SHOW_OVERLAY, data);
+  hasMessages = true;
+  refreshOverlayVisibility();
+  sendWhenReady(overlayWindow, IPC.SHOW_OVERLAY, data);
 }
 
 function dismissOverlay() {
   console.log('[Overlay] dismissOverlay called');
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.hide();
-    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-    console.log('[Overlay] Dismissed and hidden');
-  } else {
-    console.log('[Overlay] No overlay to dismiss');
-  }
+  hasMessages = false;
+  refreshOverlayVisibility();
 }
 
 function showActiveCallOverlay(data) {
   if (!overlayEnabled) return;
 
   activeCallData = data;
-  const overlay = createOverlayWindow();
+  createOverlayWindow();
+  positionOverlayFullWorkArea();
 
-  const display = getTargetDisplay(getMainWindow());
-  const { x: workX, y: workY, height: workH } = display.workArea;
-  overlay.setBounds({ x: workX, y: workY, width: OVERLAY_WIDTH, height: workH });
-  console.log('[Overlay] Repositioned to display:', display.id, 'at', workX, workY);
-
-  if (!overlay.isVisible()) {
-    overlay.showInactive();
-  }
-  overlay.setIgnoreMouseEvents(false);
-  sendWhenReady(overlay, IPC.SHOW_ACTIVE_CALL, data);
+  hasActiveCall = true;
+  refreshOverlayVisibility();
+  sendWhenReady(overlayWindow, IPC.SHOW_ACTIVE_CALL, data);
 }
 
 function updateActiveCallOverlay(data) {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
   activeCallData = { ...activeCallData, ...data };
-  overlayWindow.webContents.send(IPC.UPDATE_ACTIVE_CALL, data);
+  sendWhenReady(overlayWindow, IPC.UPDATE_ACTIVE_CALL, data);
 }
 
 function hideActiveCallOverlay() {
@@ -185,15 +195,19 @@ function hideActiveCallOverlay() {
     activeCallData ? 'set' : 'null'
   );
   activeCallData = null;
+  hasActiveCall = false;
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    console.log('[Overlay] Sending hide-active-call to overlay window');
-    overlayWindow.webContents.send(IPC.HIDE_ACTIVE_CALL);
-    overlayWindow.hide();
-    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-    console.log('[Overlay] Window hidden');
-  } else {
-    console.log('[Overlay] No overlay window to hide');
+    sendWhenReady(overlayWindow, IPC.HIDE_ACTIVE_CALL);
   }
+  refreshOverlayVisibility();
+}
+
+// Toggle mouse-event pass-through for the overlay window. The renderer calls
+// this (via SET_OVERLAY_INTERACTIVE) as the cursor enters/leaves a card, so the
+// rest of the screen stays click-through.
+function setOverlayInteractive(interactive) {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  overlayWindow.setIgnoreMouseEvents(!interactive, { forward: true });
 }
 
 function getOverlayEnabled() {
@@ -206,6 +220,8 @@ function setOverlayEnabled(val) {
 }
 
 function updateOverlayTheme(theme) {
+  // Persist so (re)created overlays can replay it on load.
+  lastTheme = theme;
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     sendWhenReady(overlayWindow, IPC.OVERLAY_THEME_UPDATE, theme);
   }
@@ -222,6 +238,7 @@ module.exports = {
   updateActiveCallOverlay,
   hideActiveCallOverlay,
   updateOverlayTheme,
+  setOverlayInteractive,
   getOverlayEnabled,
   setOverlayEnabled,
   getOverlayWindow,
