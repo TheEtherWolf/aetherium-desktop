@@ -16,7 +16,13 @@ const {
   setOverlayEnabled,
   getOverlayWindow,
 } = require('./overlay');
-const { createUpdateWindow, getUpdateWindow, installAndRestart } = require('./updater');
+const {
+  createUpdateWindow,
+  getUpdateWindow,
+  installAndRestart,
+  beginDownload,
+  isUpdateDownloaded,
+} = require('./updater');
 const { rebuildTrayMenu } = require('./tray');
 const { IPC } = require('./constants');
 const { setBadgeCount } = require('./badge');
@@ -207,27 +213,9 @@ function registerIpcHandlers() {
   // Auto-updater
   // -------------------------------------------------------------------------
 
-  ipcMain.on(IPC.START_UPDATE_DOWNLOAD, () => {
-    console.log('[AutoUpdater] Starting download from update window');
-    const { autoUpdater } = require('electron-updater');
-    autoUpdater.downloadUpdate();
-  });
-
-  ipcMain.on(IPC.UPDATE_LATER, () => {
-    console.log('[AutoUpdater] User chose to update later');
-    const win = getUpdateWindow();
-    if (win && !win.isDestroyed()) {
-      win.close();
-    }
-  });
-
-  ipcMain.on(IPC.SHOW_UPDATE_WINDOW, () => {
-    createUpdateWindow();
-  });
-
-  ipcMain.on(IPC.INSTALL_UPDATE, () => {
+  function performInstall() {
     console.log('[AutoUpdater] Installing update...');
-    debugLog('[AutoUpdater] User clicked install-update, calling quitAndInstall');
+    debugLog('[AutoUpdater] Calling quitAndInstall');
 
     // 1. Destroy tray (prevents app staying alive)
     const trayModule = require('./tray');
@@ -248,6 +236,35 @@ function registerIpcHandlers() {
         app.exit(0);
       }, 500);
     }, 100);
+  }
+
+  ipcMain.on(IPC.START_UPDATE_DOWNLOAD, () => {
+    // Already downloaded (autoDownload finished first) — the button means "install" now.
+    if (isUpdateDownloaded()) {
+      console.log('[AutoUpdater] Already downloaded — installing instead of re-downloading');
+      performInstall();
+      return;
+    }
+    // Guarded: no-op if a download is already in flight (prevents the double-download race).
+    console.log('[AutoUpdater] Download requested from update window');
+    beginDownload();
+  });
+
+  ipcMain.on(IPC.UPDATE_LATER, () => {
+    console.log('[AutoUpdater] User chose to update later');
+    const win = getUpdateWindow();
+    if (win && !win.isDestroyed()) {
+      win.close();
+    }
+  });
+
+  ipcMain.on(IPC.SHOW_UPDATE_WINDOW, () => {
+    createUpdateWindow();
+  });
+
+  ipcMain.on(IPC.INSTALL_UPDATE, () => {
+    debugLog('[AutoUpdater] User clicked install-update');
+    performInstall();
   });
 
   // NOTE: only ipcMain.handle (not ipcMain.on) is registered for check-for-updates.

@@ -15,6 +15,11 @@ const {
 let updateWindow = null;
 let updateInfo = null;
 let periodicCheckInterval = null;
+// Download-state guard: autoDownload starts a download on update-available, and the update
+// window's button can call downloadUpdate() again — racing the first and leaving state stuck.
+// Track in-flight / finished so a second START_DOWNLOAD is a no-op (or routes to install).
+let downloadStarted = false;
+let downloadFinished = false;
 
 // Semver validation — guard against a compromised update server
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[\w.]+)?(\+[\w.]+)?$/;
@@ -32,36 +37,38 @@ function createUpdateWindow() {
   const display = getTargetDisplay(mainWin);
   const { x: workX, y: workY, width: workW, height: workH } = display.workArea;
 
-  // Center over the MAIN WINDOW so the update prompt lands on the app — not on whatever monitor
-  // getDisplayMatching/primary resolves to (the cause of it opening on the other monitor).
-  let ux, uy;
+  // Cover the ENTIRE main window with a modal so the app behind is fully hidden/dimmed while
+  // updating (no visible or clickable app underneath). Fall back to the work area if the main
+  // window is gone. The dim backdrop + centered card is done in update-window.html's body.
+  let ux, uy, uw, uh;
   if (mainWin && !mainWin.isDestroyed()) {
     const b = mainWin.getBounds();
-    ux = Math.round(b.x + (b.width - UPDATE_WINDOW_WIDTH) / 2);
-    uy = Math.round(b.y + (b.height - UPDATE_WINDOW_HEIGHT) / 2);
+    ux = b.x;
+    uy = b.y;
+    uw = b.width;
+    uh = b.height;
   } else {
-    ux = workX + Math.round((workW - UPDATE_WINDOW_WIDTH) / 2);
-    uy = workY + Math.round((workH - UPDATE_WINDOW_HEIGHT) / 2);
+    ux = workX;
+    uy = workY;
+    uw = workW;
+    uh = workH;
   }
-  // Clamp fully on-screen within the target display's work area.
-  ux = Math.max(workX, Math.min(ux, workX + workW - UPDATE_WINDOW_WIDTH));
-  uy = Math.max(workY, Math.min(uy, workY + workH - UPDATE_WINDOW_HEIGHT));
 
-  console.log('[UpdateWindow] Creating on display:', display.id, 'at', ux, uy);
+  console.log('[UpdateWindow] Creating on display:', display.id, 'covering', uw, 'x', uh, 'at', ux, uy);
 
   updateWindow = new BrowserWindow({
-    width: UPDATE_WINDOW_WIDTH,
-    height: UPDATE_WINDOW_HEIGHT,
+    width: uw,
+    height: uh,
     x: ux,
     y: uy,
     parent: mainWin || undefined,
-    modal: false,
+    modal: true,
     frame: false,
     transparent: true,
     resizable: false,
     minimizable: false,
     maximizable: false,
-    skipTaskbar: false,
+    skipTaskbar: true,
     backgroundColor: '#00000000',
     webPreferences: {
       nodeIntegration: false,
@@ -75,11 +82,19 @@ function createUpdateWindow() {
 
   // Send update-info after the page and preload have fully loaded
   updateWindow.webContents.once('did-finish-load', () => {
-    if (updateInfo && !updateWindow.isDestroyed()) {
+    if (updateWindow.isDestroyed()) return;
+    if (updateInfo) {
       updateWindow.webContents.send(IPC.UPDATE_INFO, {
         currentVersion: app.getVersion(),
         newVersion: updateInfo.version,
         releaseNotes: updateInfo.releaseNotes,
+      });
+    }
+    // If the download already finished before the window loaded, replay it so the button
+    // reliably lands on Install (instead of being stuck on Download).
+    if (downloadFinished) {
+      updateWindow.webContents.send(IPC.UPDATE_DOWNLOADED, {
+        version: updateInfo ? updateInfo.version : app.getVersion(),
       });
     }
   });
@@ -97,6 +112,30 @@ function getUpdateWindow() {
  * Calls autoUpdater.quitAndInstall — exported so ipc-handlers can call it
  * without importing electron-updater directly.
  */
+/**
+ * Starts the download unless one is already in-flight or finished.
+ * Returns true if a fresh download was kicked off, false if it was a no-op.
+ */
+function beginDownload() {
+  if (downloadFinished || downloadStarted) {
+    debugLog(
+      '[AutoUpdater] Download request ignored — already',
+      downloadFinished ? 'downloaded' : 'in progress'
+    );
+    return false;
+  }
+  downloadStarted = true;
+  autoUpdater.downloadUpdate().catch((err) => {
+    downloadStarted = false; // allow retry
+    debugLog('[AutoUpdater] downloadUpdate failed:', err.message);
+  });
+  return true;
+}
+
+function isUpdateDownloaded() {
+  return downloadFinished;
+}
+
 function installAndRestart() {
   // isSilent MUST be true: electron-updater IGNORES isForceRunAfter when isSilent is false, so
   // quitAndInstall(false, true) installed correctly but never relaunched (user had to reopen the
@@ -172,6 +211,9 @@ function configureAutoUpdater() {
 
     console.log('[AutoUpdater] Update available:', info.version);
     updateInfo = info;
+    // autoDownload is on, so electron-updater begins downloading now. Mark it so the window
+    // button doesn't kick off a second, racing download.
+    downloadStarted = true;
 
     // Open the update window so the user can review and consent to the download.
     createUpdateWindow();
@@ -215,6 +257,8 @@ function configureAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Download complete:', info.version);
+    downloadStarted = false;
+    downloadFinished = true;
 
     const mainWin = getMainWindow();
     if (mainWin) {
@@ -231,6 +275,7 @@ function configureAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err);
+    downloadStarted = false; // allow the user to retry after a failed download
 
     if (updateWindow && !updateWindow.isDestroyed()) {
       updateWindow.webContents.send(IPC.UPDATE_ERROR, { message: err.message });
@@ -249,4 +294,6 @@ module.exports = {
   configureAutoUpdater,
   startPeriodicCheck,
   installAndRestart,
+  beginDownload,
+  isUpdateDownloaded,
 };
