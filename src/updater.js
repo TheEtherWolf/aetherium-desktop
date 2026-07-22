@@ -32,13 +32,28 @@ function createUpdateWindow() {
   const display = getTargetDisplay(mainWin);
   const { x: workX, y: workY, width: workW, height: workH } = display.workArea;
 
-  console.log('[UpdateWindow] Creating on display:', display.id, 'centered at', workX, workY);
+  // Center over the MAIN WINDOW so the update prompt lands on the app — not on whatever monitor
+  // getDisplayMatching/primary resolves to (the cause of it opening on the other monitor).
+  let ux, uy;
+  if (mainWin && !mainWin.isDestroyed()) {
+    const b = mainWin.getBounds();
+    ux = Math.round(b.x + (b.width - UPDATE_WINDOW_WIDTH) / 2);
+    uy = Math.round(b.y + (b.height - UPDATE_WINDOW_HEIGHT) / 2);
+  } else {
+    ux = workX + Math.round((workW - UPDATE_WINDOW_WIDTH) / 2);
+    uy = workY + Math.round((workH - UPDATE_WINDOW_HEIGHT) / 2);
+  }
+  // Clamp fully on-screen within the target display's work area.
+  ux = Math.max(workX, Math.min(ux, workX + workW - UPDATE_WINDOW_WIDTH));
+  uy = Math.max(workY, Math.min(uy, workY + workH - UPDATE_WINDOW_HEIGHT));
+
+  console.log('[UpdateWindow] Creating on display:', display.id, 'at', ux, uy);
 
   updateWindow = new BrowserWindow({
     width: UPDATE_WINDOW_WIDTH,
     height: UPDATE_WINDOW_HEIGHT,
-    x: workX + Math.round((workW - UPDATE_WINDOW_WIDTH) / 2),
-    y: workY + Math.round((workH - UPDATE_WINDOW_HEIGHT) / 2),
+    x: ux,
+    y: uy,
     parent: mainWin || undefined,
     modal: false,
     frame: false,
