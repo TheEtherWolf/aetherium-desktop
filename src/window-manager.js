@@ -352,14 +352,6 @@ function createWindow(onReadyCallback) {
     try { url = mainWindow?.webContents?.getURL() || ''; } catch { /* ignore */ }
     crashLog('render-process-gone', 'reason=' + details.reason, 'exitCode=' + details.exitCode, mem, 'url=' + url);
     if (details.reason === 'clean-exit') return;
-
-    // A 'crashed' renderer at low memory = a native/GPU access violation (0xC0000005),
-    // not OOM. Flag it so the next launch falls back to CPU rendering and stops the
-    // reload-on-message loop. Only trips when hardware acceleration is currently on.
-    if (details.reason === 'crashed' && settings.get('hardwareAcceleration', true) !== false) {
-      settings.set('gpuCrashDetected', true);
-      crashLog('Flagged gpuCrashDetected — hardware acceleration will be disabled on next launch.');
-    }
     const now = Date.now();
     if (now - lastCrashReload < 5000) {
       // Crashed again within 5s of the last recovery — likely a reload loop.
