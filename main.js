@@ -18,6 +18,14 @@ if (settings.get('hardwareAcceleration', true) === false) {
   app.disableHardwareAcceleration();
 }
 
+// Run the Chromium audio service IN-PROCESS instead of as a separate sandboxed
+// utility process. On Windows the out-of-process audio service can crash when
+// audio starts (Web Audio notification sounds), and that crash cascades into a
+// 'render-process-gone' event — which our crash-recovery reloads, so the whole
+// app appeared to reload "whenever a sound plays." In-process audio avoids that
+// cross-process crash path. Must run before app.whenReady().
+app.commandLine.appendSwitch('disable-features', 'AudioServiceOutOfProcess,AudioServiceSandbox');
+
 // Register aetherium:// deep link protocol
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
