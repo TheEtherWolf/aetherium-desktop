@@ -1,8 +1,13 @@
 'use strict';
 
-const { app, BrowserWindow, globalShortcut } = require('electron');
+const { app, BrowserWindow, globalShortcut, crashReporter } = require('electron');
 const path = require('path');
 const logger = require('./src/logger');
+
+// Capture native renderer crash minidumps locally (not uploaded) so we can identify
+// the crashing module/subsystem behind the 0xC0000005 message-time crash. Dumps land
+// in app.getPath('crashDumps')/reports. Must start before app is ready.
+try { crashReporter.start({ uploadToServer: false, compress: true }); } catch { /* best effort */ }
 const windowManager = require('./src/window-manager');
 const trayModule = require('./src/tray');
 const overlay = require('./src/overlay');

@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, Menu, shell, screen } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { debugLog, crashLog } = require('./logger');
 const settings = require('./settings');
 const {
@@ -342,15 +343,27 @@ function createWindow(onReadyCallback) {
   let rapidCrashes = 0;
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     // Rich crash capture (persisted) so we can finally classify the message-time crash:
-    // reason (crashed/oom/killed/…), exit code, the URL at crash time, and memory.
+    // reason (crashed/oom/killed/…), exit code, URL at crash time, MAIN-process memory
+    // (note: NOT the crashed renderer's — the renderer may have OOM'd on GPU textures),
+    // and the newest crash minidump path (crashReporter writes it; names the crashing
+    // module/subsystem when parsed).
     let mem = '';
     try {
       const m = process.memoryUsage();
-      mem = `rssMB=${Math.round(m.rss / 1048576)} heapMB=${Math.round(m.heapUsed / 1048576)}`;
+      mem = `mainRssMB=${Math.round(m.rss / 1048576)}`;
     } catch { /* ignore */ }
     let url = '';
     try { url = mainWindow?.webContents?.getURL() || ''; } catch { /* ignore */ }
-    crashLog('render-process-gone', 'reason=' + details.reason, 'exitCode=' + details.exitCode, mem, 'url=' + url);
+    let dump = '';
+    try {
+      const dir = path.join(app.getPath('crashDumps'), 'reports');
+      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.dmp'));
+      if (files.length) {
+        files.sort((a, b) => fs.statSync(path.join(dir, b)).mtimeMs - fs.statSync(path.join(dir, a)).mtimeMs);
+        dump = path.join(dir, files[0]);
+      }
+    } catch { /* no dumps yet */ }
+    crashLog('render-process-gone', 'reason=' + details.reason, 'exitCode=' + details.exitCode, mem, 'url=' + url, dump ? 'dump=' + dump : '');
     if (details.reason === 'clean-exit') return;
     const now = Date.now();
     if (now - lastCrashReload < 5000) {
