@@ -72,6 +72,20 @@ app.on('certificate-error', (_event, _webContents, url, error, _certificate, cal
   callback(false); // Reject invalid certificates
 });
 
+// Capture GPU / utility (incl. audio-service) child-process crashes. These do NOT
+// fire 'render-process-gone', so a crash there (a strong suspect for the sound- and
+// message-time reloads) would otherwise go unrecorded. Persisted to crashes.log.
+app.on('child-process-gone', (_event, details) => {
+  logger.crashLog(
+    'child-process-gone',
+    'type=' + details.type,
+    'reason=' + details.reason,
+    'exitCode=' + details.exitCode,
+    'name=' + (details.name || ''),
+    'service=' + (details.serviceName || '')
+  );
+});
+
 // Prevent multiple instances
 const gotTheLock = app.requestSingleInstanceLock();
 

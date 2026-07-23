@@ -15,10 +15,22 @@ function debugLog(...args) {
   console.log(...args);
 }
 
+// Persistent crash log — APPENDED, never truncated on start, so crash history
+// survives across sessions/reloads for diagnosis.
+const crashFile = path.join(app.getPath('userData'), 'crashes.log');
+
+function crashLog(...args) {
+  const timestamp = new Date().toISOString();
+  const line = `[${timestamp}] ${args.join(' ')}\n`;
+  try { fs.appendFileSync(crashFile, line); } catch { /* best effort */ }
+  debugLog('CRASH:', ...args);
+}
+
 function initLog() {
   fs.writeFileSync(logFile, `=== Aetherium Desktop Started ${new Date().toISOString()} ===\n`);
   debugLog('Log file:', logFile);
+  debugLog('Crash log:', crashFile);
   debugLog('App version:', app.getVersion());
 }
 
-module.exports = { debugLog, initLog };
+module.exports = { debugLog, initLog, crashLog };

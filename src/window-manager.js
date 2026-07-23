@@ -2,7 +2,7 @@
 
 const { app, BrowserWindow, Menu, shell, screen } = require('electron');
 const path = require('path');
-const { debugLog } = require('./logger');
+const { debugLog, crashLog } = require('./logger');
 const settings = require('./settings');
 const {
   AETHERIUM_URL,
@@ -341,7 +341,16 @@ function createWindow(onReadyCallback) {
   let lastCrashReload = 0;
   let rapidCrashes = 0;
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    debugLog('Renderer process gone:', details.reason, details.exitCode);
+    // Rich crash capture (persisted) so we can finally classify the message-time crash:
+    // reason (crashed/oom/killed/…), exit code, the URL at crash time, and memory.
+    let mem = '';
+    try {
+      const m = process.memoryUsage();
+      mem = `rssMB=${Math.round(m.rss / 1048576)} heapMB=${Math.round(m.heapUsed / 1048576)}`;
+    } catch { /* ignore */ }
+    let url = '';
+    try { url = mainWindow?.webContents?.getURL() || ''; } catch { /* ignore */ }
+    crashLog('render-process-gone', 'reason=' + details.reason, 'exitCode=' + details.exitCode, mem, 'url=' + url);
     if (details.reason === 'clean-exit') return;
     const now = Date.now();
     if (now - lastCrashReload < 5000) {
