@@ -81,7 +81,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ============================================
   // Auto-updater
   // ============================================
-  autoUpdater: {
+  // Exposed as `window.electronAPI.updates` — the name the web renderer (ChatApp.jsx)
+  // consumes. (Was previously `autoUpdater`, which no renderer referenced, so the
+  // in-app "Major Update" banner never wired up. Renamed to match.)
+  updates: {
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
     installUpdate: () => ipcRenderer.send('install-update'),
     onUpdateAvailable: (callback) => {
@@ -95,6 +98,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUpdateDownloaded: (callback) => {
       ipcRenderer.removeAllListeners('update-downloaded');
       ipcRenderer.on('update-downloaded', (event, info) => callback(info));
+    },
+    offUpdateDownloaded: () => {
+      ipcRenderer.removeAllListeners('update-downloaded');
     },
     onUpdateError: (callback) => {
       ipcRenderer.removeAllListeners('update-error');

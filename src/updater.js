@@ -211,12 +211,15 @@ function configureAutoUpdater() {
 
     console.log('[AutoUpdater] Update available:', info.version);
     updateInfo = info;
-    // autoDownload is on, so electron-updater begins downloading now. Mark it so the window
-    // button doesn't kick off a second, racing download.
+    // autoDownload is on, so electron-updater begins downloading now. Mark it so nothing
+    // kicks off a second, racing download.
     downloadStarted = true;
 
-    // Open the update window so the user can review and consent to the download.
-    createUpdateWindow();
+    // Premium flow: download SILENTLY in the background (Chrome/Discord-style) rather than
+    // hijacking the whole app with the full-screen modal on every check. The user is
+    // prompted only once the update is ready, via the in-app "Major Update" banner
+    // (rendered on 'update-downloaded'). The modal (createUpdateWindow / SHOW_UPDATE_WINDOW)
+    // stays available for an on-demand "downloading…" view but is no longer auto-opened.
 
     const mainWin = getMainWindow();
     if (mainWin) {
@@ -224,7 +227,7 @@ function configureAutoUpdater() {
       mainWin.webContents.send(IPC.UPDATE_AVAILABLE, {
         version: info.version,
         releaseNotes: info.releaseNotes,
-        downloading: false,
+        downloading: true,
       });
     }
   });

@@ -23,7 +23,7 @@ const {
   beginDownload,
   isUpdateDownloaded,
 } = require('./updater');
-const { rebuildTrayMenu } = require('./tray');
+const { rebuildTrayMenu, destroyTray } = require('./tray');
 const { IPC } = require('./constants');
 const { setBadgeCount } = require('./badge');
 const settings = require('./settings');
@@ -217,25 +217,32 @@ function registerIpcHandlers() {
     console.log('[AutoUpdater] Installing update...');
     debugLog('[AutoUpdater] Calling quitAndInstall');
 
-    // 1. Destroy tray (prevents app staying alive)
-    const trayModule = require('./tray');
-    trayModule.destroyTray();
+    // Mark the app as quitting so the hide-to-tray close guard (window-manager.js) can't
+    // veto the quit and leave quitAndInstall hanging. Belt-and-suspenders with destroy().
+    app.isQuitting = true;
 
-    // 2. Destroy all windows
+    // 1. Destroy tray so nothing keeps the process alive once windows close.
+    destroyTray();
+
+    // 2. Destroy all windows (destroy() bypasses the close-event hide guard).
     BrowserWindow.getAllWindows().forEach((win) => {
       if (!win.isDestroyed()) win.destroy();
     });
 
-    // 3. Small delay, then install
-    setTimeout(() => {
+    // 3. Next tick (let teardown settle), then silent-install + relaunch.
+    //    quitAndInstall(true, true) spawns a DETACHED NSIS installer that runs the
+    //    silent install and relaunches the app, then quits us. Give that hand-off room.
+    setImmediate(() => {
       debugLog('[AutoUpdater] Windows destroyed, calling quitAndInstall');
       installAndRestart();
-      // Force exit if quitAndInstall doesn't terminate the process
+      // Safety net ONLY if the updater fails to terminate us. The old 500ms was too
+      // short on slow disks — force-exiting mid-hand-off could kill the relaunch (app
+      // closed but never reopened). 8s lets the detached installer take over first.
       setTimeout(() => {
         debugLog('[AutoUpdater] Force exiting with app.exit(0)...');
         app.exit(0);
-      }, 500);
-    }, 100);
+      }, 8000);
+    });
   }
 
   ipcMain.on(IPC.START_UPDATE_DOWNLOAD, () => {

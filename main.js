@@ -185,6 +185,11 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // If we're already quitting (normal quit, or an update install that destroys all
+  // windows on its way to quitAndInstall), do NOT fire a second app.quit() here — on
+  // Windows that can win the race and terminate the process before quitAndInstall()
+  // runs, silently skipping the update. Let the in-flight path finish.
+  if (app.isQuitting) return;
   if (process.platform !== 'darwin') app.quit();
 });
 
