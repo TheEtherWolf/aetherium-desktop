@@ -332,6 +332,9 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC.SET_HARDWARE_ACCELERATION, (_event, enabled) => {
     if (!isBool(enabled)) return false;
     settings.set('hardwareAcceleration', enabled);
+    // Re-enabling is an explicit override — clear the auto-disable-after-crash flag
+    // so the user's choice takes effect on next launch.
+    if (enabled) settings.set('gpuCrashDetected', false);
     return enabled;
   });
 

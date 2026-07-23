@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const logger = require('./src/logger');
 const windowManager = require('./src/window-manager');
 const trayModule = require('./src/tray');
@@ -13,10 +14,30 @@ const settings = require('./src/settings');
 const keybindsModule = require('./src/keybinds');
 const { IPC, FLASH_FRAME_DURATION_MS } = require('./src/constants');
 
-// Disable hardware acceleration if user toggled it off (must run before app.whenReady)
-if (settings.get('hardwareAcceleration', true) === false) {
-  app.disableHardwareAcceleration();
-}
+// Hardware-acceleration decision (must run before whenReady). The renderer was dying
+// with a 0xC0000005 access violation (reason=crashed, LOW memory) while compositing
+// messages — a GPU/driver fault, not OOM. Falling back to CPU rendering stops it.
+// Self-healing + targeted: only machines that actually crashed lose acceleration;
+// good GPUs keep it. An explicit user choice always wins.
+(() => {
+  const hwPref = settings.get('hardwareAcceleration', null); // true/false if the user chose; null = untouched
+  if (hwPref === true) return;                               // user explicitly ON — honor it, ignore crash history
+  if (hwPref === false) { app.disableHardwareAcceleration(); return; }
+
+  // Untouched: auto-fall-back if we've seen a GPU crash — via the persisted flag or
+  // any 0xC0000005 'crashed' record in the persistent crash log (so the FIRST launch
+  // after a crash already runs on CPU, without needing another crash to trip).
+  let gpuCrashInHistory = false;
+  try {
+    const txt = fs.readFileSync(path.join(app.getPath('userData'), 'crashes.log'), 'utf-8');
+    gpuCrashInHistory = /render-process-gone reason=crashed/.test(txt);
+  } catch { /* no crash log yet */ }
+
+  if (settings.get('gpuCrashDetected', false) || gpuCrashInHistory) {
+    app.disableHardwareAcceleration();
+    logger.debugLog('Hardware acceleration disabled: prior GPU access-violation crash detected.');
+  }
+})();
 
 // Run the Chromium audio service IN-PROCESS instead of as a separate sandboxed
 // utility process. On Windows the out-of-process audio service can crash when
