@@ -148,7 +148,26 @@ function createWindow(onReadyCallback) {
   );
 
   let mainFrameLoadRetries = 0;
-  mainWindow.loadURL(AETHERIUM_URL);
+  // On a NEW app version, clear the HTTP cache + service worker once before loading, so
+  // the desktop actually picks up the latest web build instead of a stale cached one
+  // (the service worker could otherwise keep serving old assets — which is why web-side
+  // fixes weren't reaching the desktop). Only 'serviceworkers'/'cachestorage' are cleared,
+  // so login/session (cookies, localStorage, indexeddb) is preserved.
+  const appVer = app.getVersion();
+  if (settings.get('lastCacheClearVersion', null) !== appVer) {
+    const ses = mainWindow.webContents.session;
+    Promise.allSettled([
+      ses.clearCache(),
+      ses.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] }),
+    ]).then(() => {
+      settings.set('lastCacheClearVersion', appVer);
+      debugLog('Cleared cache + service worker for new app version', appVer);
+    }).finally(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(AETHERIUM_URL);
+    });
+  } else {
+    mainWindow.loadURL(AETHERIUM_URL);
+  }
 
   // Show a friendly error screen on connection failure
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
