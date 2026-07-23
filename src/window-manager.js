@@ -147,6 +147,16 @@ function createWindow(onReadyCallback) {
     ALLOWED_PERMISSIONS.includes(permission)
   );
 
+  // Ring buffer of the renderer's recent console output, dumped to crashes.log on a
+  // renderer crash so we can see the LAST activity before the 0xC0000005 (a failing
+  // resource, a JS error, what was rendering) — the minidump alone can't tell us.
+  const consoleRing = [];
+  mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    consoleRing.push(`L${level} ${String(message).slice(0, 180)}${sourceId ? ` @${String(sourceId).split('/').pop()}:${line}` : ''}`);
+    if (consoleRing.length > 50) consoleRing.shift();
+  });
+  mainWindow.__consoleRing = consoleRing;
+
   let mainFrameLoadRetries = 0;
   // On a NEW app version, clear the HTTP cache + service worker once before loading, so
   // the desktop actually picks up the latest web build instead of a stale cached one
@@ -383,6 +393,10 @@ function createWindow(onReadyCallback) {
       }
     } catch { /* no dumps yet */ }
     crashLog('render-process-gone', 'reason=' + details.reason, 'exitCode=' + details.exitCode, mem, 'url=' + url, dump ? 'dump=' + dump : '');
+    try {
+      const ring = mainWindow?.__consoleRing;
+      if (ring && ring.length) crashLog('last-console(' + ring.length + '):\n  ' + ring.slice(-25).join('\n  '));
+    } catch { /* ignore */ }
     if (details.reason === 'clean-exit') return;
     const now = Date.now();
     if (now - lastCrashReload < 5000) {
